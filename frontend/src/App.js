@@ -10,12 +10,13 @@ function App() {
   const [mascota, setMascota] = useState({ nombre: '', raza: '', edad: '', peso: '' });
   const [turno, setTurno] = useState({ mascota_id: '', sucursal: '', dia: '', hora: '' });
   const [nuevoHorario, setNuevoHorario] = useState({ sucursal_id: '', dia: '', hora: '' });
+  const [editHorario, setEditHorario] = useState(null);
   const [mascotas, setMascotas] = useState([]);
   const [sucursales, setSucursales] = useState([]);
   const [horarios, setHorarios] = useState([]);
   const [turnos, setTurnos] = useState([]);
   const [horariosAdmin, setHorariosAdmin] = useState([]);
-  const backendUrl = 'https://zoonosis-backend.onrender.com'; // Cambia a Render para producción
+  const backendUrl = 'https://zoonosis-backend.onrender.com'; // URL de producción
 
   useEffect(() => {
     if (token) {
@@ -143,6 +144,20 @@ function App() {
       setNuevoHorario({ sucursal_id: '', dia: '', hora: '' });
     } catch (error) {
       alert('Error al agregar horario');
+    }
+  };
+
+  const editarHorario = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await axios.put(`${backendUrl}/api/horarios/${editHorario.id}`, editHorario, {
+        headers: { Authorization: token }
+      });
+      alert(response.data.message);
+      obtenerHorariosAdmin();
+      setEditHorario(null);
+    } catch (error) {
+      alert('Error al editar horario');
     }
   };
 
@@ -381,6 +396,38 @@ function App() {
             <button type="submit">Agregar Horario</button>
           </form>
 
+          {editHorario && (
+            <form onSubmit={editarHorario}>
+              <h4>Editar Horario ID: {editHorario.id}</h4>
+              <select
+                value={editHorario.sucursal_id}
+                onChange={(e) => setEditHorario({ ...editHorario, sucursal_id: e.target.value })}
+                required
+              >
+                <option value="">Seleccionar Sucursal</option>
+                {sucursales.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nombre}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="date"
+                value={editHorario.dia}
+                onChange={(e) => setEditHorario({ ...editHorario, dia: e.target.value })}
+                required
+              />
+              <input
+                type="time"
+                value={editHorario.hora}
+                onChange={(e) => setEditHorario({ ...editHorario, hora: e.target.value })}
+                required
+              />
+              <button type="submit">Guardar Cambios</button>
+              <button type="button" onClick={() => setEditHorario(null)}>Cancelar</button>
+            </form>
+          )}
+
           <table>
             <thead>
               <tr>
@@ -389,7 +436,7 @@ function App() {
                 <th>Día</th>
                 <th>Hora</th>
                 <th>Disponible</th>
-                <th>Acción</th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -401,6 +448,9 @@ function App() {
                   <td>{h.hora}</td>
                   <td>{h.disponible ? 'Sí' : 'No'}</td>
                   <td>
+                    <button onClick={() => setEditHorario({ id: h.id, sucursal_id: sucursales.find(s => s.nombre === h.sucursal)?.id, dia: h.dia, hora: h.hora })}>
+                      Editar
+                    </button>
                     <button onClick={() => eliminarHorario(h.id)}>Eliminar</button>
                   </td>
                 </tr>
