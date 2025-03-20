@@ -5,7 +5,7 @@ function App() {
   const [mensaje, setMensaje] = useState('');
 
   useEffect(() => {
-    axios.get('http://localhost:3001')
+    axios.get('https://zoonosis-backend.onrender.com')
       .then(response => setMensaje(response.data))
       .catch(error => console.error(error));
   }, []);
