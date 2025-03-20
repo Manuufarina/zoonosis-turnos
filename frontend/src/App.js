@@ -6,22 +6,25 @@ function App() {
   const [dni, setDni] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminLogin, setAdminLogin] = useState({ username: '', password: '' });
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+  const [token, setToken] = useState(null);
   const [mascota, setMascota] = useState({ nombre: '', raza: '', edad: '', peso: '' });
   const [turno, setTurno] = useState({ mascota_id: '', sucursal: '', dia: '', hora: '' });
+  const [nuevoHorario, setNuevoHorario] = useState({ sucursal_id: '', dia: '', hora: '' });
   const [mascotas, setMascotas] = useState([]);
   const [sucursales, setSucursales] = useState([]);
   const [horarios, setHorarios] = useState([]);
   const [turnos, setTurnos] = useState([]);
+  const [horariosAdmin, setHorariosAdmin] = useState([]);
   const backendUrl = 'http://localhost:3001'; // Cambia a Render para producción
 
   useEffect(() => {
-    if (isAdmin && isAdminAuthenticated) {
+    if (token) {
       obtenerTurnos();
+      obtenerHorariosAdmin();
     } else if (!isAdmin) {
       obtenerSucursales();
     }
-  }, [isAdmin, isAdminAuthenticated]);
+  }, [token, isAdmin]);
 
   const registrarVecino = async (e) => {
     e.preventDefault();
@@ -95,16 +98,22 @@ function App() {
 
   const obtenerTurnos = async () => {
     try {
-      const response = await axios.get(`${backendUrl}/api/turnos`);
+      const response = await axios.get(`${backendUrl}/api/turnos`, {
+        headers: { Authorization: token }
+      });
       setTurnos(response.data);
     } catch (error) {
       alert('Error al obtener turnos');
+      setToken(null);
+      setIsAdmin(false);
     }
   };
 
   const cancelarTurno = async (id) => {
     try {
-      const response = await axios.put(`${backendUrl}/api/turnos/${id}/cancelar`);
+      const response = await axios.put(`${backendUrl}/api/turnos/${id}/cancelar`, {}, {
+        headers: { Authorization: token }
+      });
       alert(response.data.message);
       obtenerTurnos();
     } catch (error) {
@@ -112,15 +121,51 @@ function App() {
     }
   };
 
-  const handleAdminLogin = (e) => {
+  const obtenerHorariosAdmin = async () => {
+    try {
+      const response = await axios.get(`${backendUrl}/api/horarios`, {
+        headers: { Authorization: token }
+      });
+      setHorariosAdmin(response.data);
+    } catch (error) {
+      alert('Error al obtener horarios admin');
+    }
+  };
+
+  const agregarHorario = async (e) => {
     e.preventDefault();
-    const adminUsername = 'admin';
-    const adminPassword = '1234';
-    if (adminLogin.username === adminUsername && adminLogin.password === adminPassword) {
-      setIsAdminAuthenticated(true);
+    try {
+      const response = await axios.post(`${backendUrl}/api/horarios`, nuevoHorario, {
+        headers: { Authorization: token }
+      });
+      alert(response.data.message);
+      obtenerHorariosAdmin();
+      setNuevoHorario({ sucursal_id: '', dia: '', hora: '' });
+    } catch (error) {
+      alert('Error al agregar horario');
+    }
+  };
+
+  const eliminarHorario = async (id) => {
+    try {
+      const response = await axios.delete(`${backendUrl}/api/horarios/${id}`, {
+        headers: { Authorization: token }
+      });
+      alert(response.data.message);
+      obtenerHorariosAdmin();
+    } catch (error) {
+      alert('Error al eliminar horario');
+    }
+  };
+
+  const handleAdminLogin = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await axios.post(`${backendUrl}/api/admin/login`, adminLogin);
+      setToken(response.data.token);
       setIsAdmin(true);
-    } else {
-      alert('Usuario o contraseña incorrectos');
+    } catch (error) {
+      alert(error.response?.data?.error || 'Error al iniciar sesión');
     }
   };
 
@@ -128,7 +173,7 @@ function App() {
     <div className="App">
       <h1>Sistema de Turnos - Zoonosis</h1>
 
-      {isAdmin && !isAdminAuthenticated ? (
+      {isAdmin && !token ? (
         <form onSubmit={handleAdminLogin}>
           <h2>Login Administrador</h2>
           <input
@@ -271,7 +316,9 @@ function App() {
         <div>
           <h2>Dashboard del Administrador</h2>
           <button onClick={obtenerTurnos}>Actualizar Turnos</button>
-          <button onClick={() => { setIsAdmin(false); setIsAdminAuthenticated(false); }}>Cerrar Sesión</button>
+          <button onClick={() => { setToken(null); setIsAdmin(false); }}>Cerrar Sesión</button>
+
+          <h3>Turnos Reservados</h3>
           <table>
             <thead>
               <tr>
@@ -299,6 +346,62 @@ function App() {
                     {t.estado === 'Reservado' && (
                       <button onClick={() => cancelarTurno(t.id)}>Cancelar</button>
                     )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <h3>Gestionar Horarios</h3>
+          <form onSubmit={agregarHorario}>
+            <select
+              value={nuevoHorario.sucursal_id}
+              onChange={(e) => setNuevoHorario({ ...nuevoHorario, sucursal_id: e.target.value })}
+              required
+            >
+              <option value="">Seleccionar Sucursal</option>
+              {sucursales.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nombre}
+                </option>
+              ))}
+            </select>
+            <input
+              type="date"
+              value={nuevoHorario.dia}
+              onChange={(e) => setNuevoHorario({ ...nuevoHorario, dia: e.target.value })}
+              required
+            />
+            <input
+              type="time"
+              value={nuevoHorario.hora}
+              onChange={(e) => setNuevoHorario({ ...nuevoHorario, hora: e.target.value })}
+              required
+            />
+            <button type="submit">Agregar Horario</button>
+          </form>
+
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Sucursal</th>
+                <th>Día</th>
+                <th>Hora</th>
+                <th>Disponible</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {horariosAdmin.map((h) => (
+                <tr key={h.id}>
+                  <td>{h.id}</td>
+                  <td>{h.sucursal}</td>
+                  <td>{h.dia}</td>
+                  <td>{h.hora}</td>
+                  <td>{h.disponible ? 'Sí' : 'No'}</td>
+                  <td>
+                    <button onClick={() => eliminarHorario(h.id)}>Eliminar</button>
                   </td>
                 </tr>
               ))}
