@@ -14,7 +14,7 @@ form {
   margin-right: auto;
 }
 
-input, button {
+input, select, button {
   padding: 10px;
   font-size: 16px;
 }
@@ -37,4 +37,19 @@ ul {
 
 li {
   margin: 5px 0;
+}
+
+table {
+  width: 80%;
+  margin: 20px auto;
+  border-collapse: collapse;
+}
+
+th, td {
+  border: 1px solid #ddd;
+  padding: 8px;
+}
+
+th {
+  background-color: #f2f2f2;
 }

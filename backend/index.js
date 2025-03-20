@@ -47,6 +47,38 @@ db.serialize(() => {
     FOREIGN KEY (dni_vecino) REFERENCES vecinos(dni),
     FOREIGN KEY (mascota_id) REFERENCES mascotas(id)
   )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS sucursales (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT,
+    direccion TEXT
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS horarios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sucursal_id INTEGER,
+    dia TEXT,
+    hora TEXT,
+    disponible INTEGER DEFAULT 1,
+    FOREIGN KEY (sucursal_id) REFERENCES sucursales(id)
+  )`);
+
+  // Precargar sucursales (solo si no existen)
+  db.get(`SELECT COUNT(*) as count FROM sucursales`, (err, row) => {
+    if (row.count === 0) {
+      db.run(`INSERT INTO sucursales (nombre, direccion) VALUES ('Zoonosis Central', 'Av. Central 123')`);
+      db.run(`INSERT INTO sucursales (nombre, direccion) VALUES ('Sucursal Norte', 'Calle Norte 456')`);
+    }
+  });
+
+  // Precargar horarios de ejemplo
+  db.get(`SELECT COUNT(*) as count FROM horarios`, (err, row) => {
+    if (row.count === 0) {
+      db.run(`INSERT INTO horarios (sucursal_id, dia, hora) VALUES (1, '2025-03-25', '10:00')`);
+      db.run(`INSERT INTO horarios (sucursal_id, dia, hora) VALUES (1, '2025-03-25', '11:00')`);
+      db.run(`INSERT INTO horarios (sucursal_id, dia, hora) VALUES (2, '2025-03-26', '14:00')`);
+    }
+  });
 });
 
 // Configurar Nodemailer
@@ -97,11 +129,29 @@ app.get('/api/mascotas/:dni', (req, res) => {
   });
 });
 
+// Ruta para obtener sucursales
+app.get('/api/sucursales', (req, res) => {
+  const sql = `SELECT * FROM sucursales`;
+  db.all(sql, [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
+
+// Ruta para obtener horarios disponibles
+app.get('/api/horarios/:sucursal_id', (req, res) => {
+  const { sucursal_id } = req.params;
+  const sql = `SELECT * FROM horarios WHERE sucursal_id = ? AND disponible = 1`;
+  db.all(sql, [sucursal_id], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
+
 // Ruta para reservar un turno
 app.post('/api/turnos', (req, res) => {
   const { dni_vecino, mascota_id, sucursal, dia, hora } = req.body;
-  // Verificar si ya hay un turno en el mes
-  const mes = dia.substring(0, 7); // Ej: "2025-03"
+  const mes = dia.substring(0, 7);
   const sqlCheck = `SELECT COUNT(*) as count FROM turnos WHERE dni_vecino = ? AND dia LIKE ? AND estado = 'Reservado'`;
   db.get(sqlCheck, [dni_vecino, `${mes}%`], (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -111,7 +161,9 @@ app.post('/api/turnos', (req, res) => {
     db.run(sqlInsert, [dni_vecino, mascota_id, sucursal, dia, hora], function (err) {
       if (err) return res.status(400).json({ error: 'Error al reservar turno' });
 
-      // Enviar email de confirmación
+      // Marcar horario como no disponible
+      db.run(`UPDATE horarios SET disponible = 0 WHERE dia = ? AND hora = ? AND sucursal_id = (SELECT id FROM sucursales WHERE nombre = ?)`, [dia, hora, sucursal]);
+
       db.get(`SELECT email, nombre FROM vecinos WHERE dni = ?`, [dni_vecino], (err, vecino) => {
         if (err) return;
         const mailOptions = {
@@ -126,6 +178,28 @@ app.post('/api/turnos', (req, res) => {
       });
       res.status(201).json({ message: 'Turno reservado', id: this.lastID });
     });
+  });
+});
+
+// Ruta para obtener todos los turnos (dashboard admin)
+app.get('/api/turnos', (req, res) => {
+  const sql = `SELECT t.id, t.dni_vecino, v.nombre AS vecino_nombre, m.nombre AS mascota_nombre, t.sucursal, t.dia, t.hora, t.estado 
+               FROM turnos t 
+               JOIN vecinos v ON t.dni_vecino = v.dni 
+               JOIN mascotas m ON t.mascota_id = m.id`;
+  db.all(sql, [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
+
+// Ruta para cancelar un turno
+app.put('/api/turnos/:id/cancelar', (req, res) => {
+  const { id } = req.params;
+  const sql = `UPDATE turnos SET estado = 'Cancelado' WHERE id = ?`;
+  db.run(sql, [id], function (err) {
+    if (err) return res.status(400).json({ error: 'Error al cancelar turno' });
+    res.json({ message: 'Turno cancelado' });
   });
 });
 
