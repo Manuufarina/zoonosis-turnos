@@ -8,7 +8,11 @@ const app = express();
 const port = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'tu_secreto_super_seguro';
 
-app.use(cors());
+app.use(cors({
+    origin: 'https://zoonosis-turnos.vercel.app',
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+  }));
 app.use(express.json());
 
 const db = new sqlite3.Database('./zoonosis.db', (err) => {

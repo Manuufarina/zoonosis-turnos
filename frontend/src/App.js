@@ -15,7 +15,7 @@ function App() {
   const [horarios, setHorarios] = useState([]);
   const [turnos, setTurnos] = useState([]);
   const [horariosAdmin, setHorariosAdmin] = useState([]);
-  const backendUrl = 'http://localhost:3001'; // Cambia a Render para producción
+  const backendUrl = 'https://zoonosis-backend.onrender.com'; // Cambia a Render para producción
 
   useEffect(() => {
     if (token) {
