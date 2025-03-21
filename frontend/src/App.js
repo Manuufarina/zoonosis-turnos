@@ -16,6 +16,7 @@ function App() {
   const [horarios, setHorarios] = useState([]);
   const [turnos, setTurnos] = useState([]);
   const [horariosAdmin, setHorariosAdmin] = useState([]);
+  const [turnosVecino, setTurnosVecino] = useState([]);
   const backendUrl = 'https://zoonosis-backend.onrender.com';
 
   useEffect(() => {
@@ -39,8 +40,14 @@ function App() {
     };
     try {
       const response = await axios.post(`${backendUrl}/api/vecinos`, datos);
-      alert(response.data.message);
-      setDni(datos.dni);
+      if (response.status === 201) {
+        alert(response.data.message);
+        setDni(datos.dni);
+      } else if (response.status === 200 && response.data.message === 'Usuario ya registrado') {
+        setDni(datos.dni);
+        obtenerMascotas();
+        obtenerTurnosVecino(datos.dni);
+      }
     } catch (error) {
       alert(error.response?.data?.error || 'Error al registrar');
     }
@@ -92,6 +99,7 @@ function App() {
       const response = await axios.post(`${backendUrl}/api/turnos`, datos);
       alert(response.data.message);
       setHorarios(horarios.filter(h => !(h.dia === turno.dia && h.hora === turno.hora)));
+      obtenerTurnosVecino(dni); // Actualizar turnos del vecino
     } catch (error) {
       alert(error.response?.data?.error || 'Error al reservar turno');
     }
@@ -173,6 +181,15 @@ function App() {
     }
   };
 
+  const obtenerTurnosVecino = async (dni) => {
+    try {
+      const response = await axios.get(`${backendUrl}/api/turnos/vecino/${dni}`);
+      setTurnosVecino(response.data);
+    } catch (error) {
+      alert('Error al obtener turnos del vecino');
+    }
+  };
+
   const handleAdminLogin = async (e) => {
     e.preventDefault();
     try {
@@ -227,6 +244,7 @@ function App() {
           <div>
             <h2>Bienvenido, DNI: {dni}</h2>
             <button onClick={() => setIsAdmin(true)}>Ir a Login Admin</button>
+            <button onClick={() => setDni('')}>Cambiar Vecino</button>
 
             <form onSubmit={registrarMascota}>
               <h3>Registrar Nueva Mascota</h3>
@@ -325,6 +343,37 @@ function App() {
               </select>
               <button type="submit">Reservar Turno</button>
             </form>
+
+            <h3>Mis Turnos</h3>
+            <button onClick={() => obtenerTurnosVecino(dni)}>Actualizar Turnos</button>
+            {turnosVecino.length > 0 ? (
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Mascota</th>
+                    <th>Puesto</th>
+                    <th>Día</th>
+                    <th>Hora</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {turnosVecino.map((t) => (
+                    <tr key={t.id}>
+                      <td>{t.id}</td>
+                      <td>{t.mascota_nombre}</td>
+                      <td>{t.puesto}</td>
+                      <td>{t.dia}</td>
+                      <td>{t.hora}</td>
+                      <td>{t.estado}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p>No hay turnos registrados</p>
+            )}
           </div>
         )
       ) : (

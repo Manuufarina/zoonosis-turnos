@@ -168,22 +168,37 @@ app.post('/api/admin/login', (req, res) => {
 });
 
 app.post('/api/vecinos', (req, res) => {
-  const { dni, nombre, telefono, email, direccion, tarjeta_ciudadana } = req.body;
-  const sql = `INSERT INTO vecinos (dni, nombre, telefono, email, direccion, tarjeta_ciudadana) VALUES (?, ?, ?, ?, ?, ?)`;
-  db.run(sql, [dni, nombre, telefono, email, direccion, tarjeta_ciudadana], function (err) {
-    if (err) return res.status(400).json({ error: 'DNI ya registrado o datos inválidos' });
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: 'Registro Exitoso - Zoonosis San Isidro',
-      text: `Hola ${nombre}, tu registro fue exitoso. DNI: ${dni}`,
-    };
-    transporter.sendMail(mailOptions, (error) => {
-      if (error) console.error(error);
+    const { dni, nombre, telefono, email, direccion, tarjeta_ciudadana } = req.body;
+  
+    // Verificar si el DNI ya existe
+    db.get(`SELECT * FROM vecinos WHERE dni = ?`, [dni], (err, row) => {
+      if (err) return res.status(500).json({ error: err.message });
+  
+      if (row) {
+        // Si existe, devolver mensaje y datos existentes
+        return res.status(200).json({ 
+          message: 'Usuario ya registrado', 
+          vecino: row 
+        });
+      }
+  
+      // Si no existe, registrar nuevo vecino
+      const sql = `INSERT INTO vecinos (dni, nombre, telefono, email, direccion, tarjeta_ciudadana) VALUES (?, ?, ?, ?, ?, ?)`;
+      db.run(sql, [dni, nombre, telefono, email, direccion, tarjeta_ciudadana], function (err) {
+        if (err) return res.status(400).json({ error: 'Error al registrar vecino' });
+        const mailOptions = {
+          from: process.env.EMAIL_USER,
+          to: email,
+          subject: 'Registro Exitoso - Zoonosis San Isidro',
+          text: `Hola ${nombre}, tu registro fue exitoso. DNI: ${dni}`,
+        };
+        transporter.sendMail(mailOptions, (error) => {
+          if (error) console.error(error);
+        });
+        res.status(201).json({ message: 'Vecino registrado' });
+      });
     });
-    res.status(201).json({ message: 'Vecino registrado' });
   });
-});
 
 app.post('/api/mascotas', (req, res) => {
   const { dni_vecino, nombre, raza, edad, peso } = req.body;
@@ -347,3 +362,16 @@ app.get('/', (req, res) => {
 app.listen(port, () => {
   console.log(`Servidor corriendo en http://localhost:${port}`);
 });
+
+app.get('/api/turnos/vecino/:dni', (req, res) => {
+    const { dni } = req.params;
+    const sql = `SELECT t.id, t.dni_vecino, v.nombre AS vecino_nombre, m.nombre AS mascota_nombre, t.puesto, t.dia, t.hora, t.estado 
+                 FROM turnos t 
+                 JOIN vecinos v ON t.dni_vecino = v.dni 
+                 JOIN mascotas m ON t.mascota_id = m.id 
+                 WHERE t.dni_vecino = ?`;
+    db.all(sql, [dni], (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(rows);
+    });
+  });
