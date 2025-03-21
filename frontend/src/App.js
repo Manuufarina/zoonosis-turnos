@@ -125,6 +125,23 @@ function App() {
     }
   };
 
+  const descargarPDF = async (turnoId) => {
+    try {
+      const response = await axios.get(`${backendUrl}/api/turnos/pdf/${turnoId}`, {
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `turno_${turnoId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      alert('Error al descargar el PDF');
+    }
+  };
+
   const obtenerTurnos = async () => {
     try {
       const response = await axios.get(`${backendUrl}/api/turnos`, {
@@ -482,7 +499,7 @@ function App() {
                     <th>Hora</th>
                     <th>Veterinario</th>
                     <th>Estado</th>
-                    <th>Acción</th>
+                    <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -501,6 +518,9 @@ function App() {
                             Cancelar
                           </button>
                         )}
+                        <button onClick={() => descargarPDF(t.id)}>
+                          Descargar PDF
+                        </button>
                       </td>
                     </tr>
                   ))}

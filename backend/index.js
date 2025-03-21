@@ -3,6 +3,8 @@ const sqlite3 = require('sqlite3').verbose();
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const cors = require('cors');
+const PDFDocument = require('pdfkit');
+const fetch = require('node-fetch');
 require('dotenv').config();
 
 const app = express();
@@ -349,7 +351,6 @@ app.post('/api/turnos', (req, res) => {
               if (err) console.error('Error al actualizar horario:', err.message);
             });
 
-            // Obtener datos para el email
             db.get(`SELECT nombre, email FROM vecinos WHERE dni = ?`, [dni_vecino], (err, vecino) => {
               if (err) {
                 console.error('Error al obtener vecino:', err.message);
@@ -357,7 +358,7 @@ app.post('/api/turnos', (req, res) => {
               }
               if (!vecino || !vecino.email) {
                 console.error('No se encontró email para el vecino con DNI:', dni_vecino);
-                return res.json({ message: 'Turno reservado, pero no se pudo enviar el email' });
+                return res.json({ message: 'Turno reservado, pero no se pudo enviar el email', id: this.lastID });
               }
 
               db.get(`SELECT nombre FROM mascotas WHERE id = ?`, [mascota_id], (err, mascota) => {
@@ -390,6 +391,74 @@ app.post('/api/turnos', (req, res) => {
           });
         });
     });
+});
+
+app.get('/api/turnos/pdf/:id', async (req, res) => {
+  const { id } = req.params;
+
+  // Obtener datos del turno, vecino y mascota
+  db.get(`SELECT t.*, v.nombre AS vecino_nombre, v.dni AS vecino_dni, v.telefono AS vecino_telefono, v.email AS vecino_email, v.direccion AS vecino_direccion, 
+                 m.nombre AS mascota_nombre, m.raza AS mascota_raza, m.edad AS mascota_edad, m.peso AS mascota_peso, 
+                 vet.nombre AS veterinario_nombre 
+          FROM turnos t 
+          JOIN vecinos v ON t.dni_vecino = v.dni 
+          JOIN mascotas m ON t.mascota_id = m.id 
+          LEFT JOIN veterinarios vet ON t.veterinario_id = vet.id 
+          WHERE t.id = ?`, [id], async (err, turno) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!turno) return res.status(404).json({ error: 'Turno no encontrado' });
+
+    // Crear el documento PDF
+    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=turno_${id}.pdf`);
+    doc.pipe(res);
+
+    // Descargar el logo
+    const logoUrl = 'https://www.sanisidro.gob.ar/sites/default/files/Logo%20San%20Isidro%202017.png';
+    const response = await fetch(logoUrl);
+    const logoBuffer = await response.buffer();
+
+    // Agregar el logo
+    doc.image(logoBuffer, 50, 30, { width: 200 });
+
+    // Título
+    doc.moveDown(8);
+    doc.fontSize(20).text('Reserva de turno de castración', { align: 'center' });
+
+    // Datos del turno
+    doc.moveDown(2);
+    doc.fontSize(14).text('Datos del Turno', { underline: true });
+    doc.moveDown(0.5);
+    doc.fontSize(12).text(`ID del Turno: ${turno.id}`);
+    doc.text(`Puesto: ${turno.puesto}`);
+    doc.text(`Día: ${turno.dia}`);
+    doc.text(`Hora: ${turno.hora}`);
+    doc.text(`Veterinario: ${turno.veterinario_nombre || 'No asignado'}`);
+    doc.text(`Estado: ${turno.estado}`);
+
+    // Datos del vecino
+    doc.moveDown(1);
+    doc.fontSize(14).text('Datos del Vecino', { underline: true });
+    doc.moveDown(0.5);
+    doc.fontSize(12).text(`Nombre: ${turno.vecino_nombre}`);
+    doc.text(`DNI: ${turno.vecino_dni}`);
+    doc.text(`Teléfono: ${turno.vecino_telefono}`);
+    doc.text(`Email: ${turno.vecino_email}`);
+    doc.text(`Dirección: ${turno.vecino_direccion}`);
+
+    // Datos de la mascota
+    doc.moveDown(1);
+    doc.fontSize(14).text('Datos de la Mascota', { underline: true });
+    doc.moveDown(0.5);
+    doc.fontSize(12).text(`Nombre: ${turno.mascota_nombre}`);
+    doc.text(`Raza: ${turno.mascota_raza}`);
+    doc.text(`Edad: ${turno.mascota_edad}`);
+    doc.text(`Peso: ${turno.mascota_peso} kg`);
+
+    // Finalizar el PDF
+    doc.end();
+  });
 });
 
 app.get('/api/turnos', (req, res) => {
