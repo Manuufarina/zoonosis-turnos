@@ -17,6 +17,7 @@ function App() {
   const [turnos, setTurnos] = useState([]);
   const [horariosAdmin, setHorariosAdmin] = useState([]);
   const [turnosVecino, setTurnosVecino] = useState([]);
+  const [filtroTurnos, setFiltroTurnos] = useState('Todos'); // Nuevo estado para filtro
   const backendUrl = 'https://zoonosis-backend.onrender.com';
 
   useEffect(() => {
@@ -43,7 +44,7 @@ function App() {
       if (response.status === 201) {
         alert(response.data.message);
         setDni(datos.dni);
-        obtenerMascotas(datos.dni); // Cargar mascotas inmediatamente
+        obtenerMascotas(datos.dni);
         obtenerTurnosVecino(datos.dni);
       } else if (response.status === 200 && response.data.message === 'Usuario ya registrado') {
         setDni(datos.dni);
@@ -217,6 +218,13 @@ function App() {
     }
   };
 
+  const turnosFiltrados = turnosVecino.filter((t) => {
+    if (filtroTurnos === 'Todos') return true;
+    if (filtroTurnos === 'Reservados') return t.estado === 'Reservado';
+    if (filtroTurnos === 'Pasados') return t.estado !== 'Reservado';
+    return true;
+  });
+
   return (
     <div className="App">
       <h1>Sistema de Turnos - Zoonosis</h1>
@@ -361,9 +369,17 @@ function App() {
             </form>
 
             <h3>Mis Turnos</h3>
-            <button onClick={() => obtenerTurnosVecino(dni)}>Actualizar Turnos</button>
-            {turnosVecino.length > 0 ? (
-              <table>
+            <div className="filtro-turnos">
+              <label>Filtrar: </label>
+              <select value={filtroTurnos} onChange={(e) => setFiltroTurnos(e.target.value)}>
+                <option value="Todos">Todos</option>
+                <option value="Reservados">Reservados</option>
+                <option value="Pasados">Pasados</option>
+              </select>
+              <button onClick={() => obtenerTurnosVecino(dni)}>Actualizar Turnos</button>
+            </div>
+            {turnosFiltrados.length > 0 ? (
+              <table className="turnos-table">
                 <thead>
                   <tr>
                     <th>ID</th>
@@ -376,8 +392,8 @@ function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {turnosVecino.map((t) => (
-                    <tr key={t.id}>
+                  {turnosFiltrados.map((t) => (
+                    <tr key={t.id} className={t.estado === 'Reservado' ? 'turno-activo' : 'turno-pasado'}>
                       <td>{t.id}</td>
                       <td>{t.mascota_nombre}</td>
                       <td>{t.puesto}</td>
@@ -386,7 +402,9 @@ function App() {
                       <td>{t.estado}</td>
                       <td>
                         {t.estado === 'Reservado' && (
-                          <button onClick={() => cancelarTurnoVecino(t.id)}>Cancelar</button>
+                          <button className="cancelar-btn" onClick={() => cancelarTurnoVecino(t.id)}>
+                            Cancelar
+                          </button>
                         )}
                       </td>
                     </tr>
@@ -394,7 +412,7 @@ function App() {
                 </tbody>
               </table>
             ) : (
-              <p>No hay turnos registrados</p>
+              <p>No hay turnos para mostrar con este filtro</p>
             )}
           </div>
         )
