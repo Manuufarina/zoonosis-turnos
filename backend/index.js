@@ -17,7 +17,7 @@ const db = new sqlite3.Database('./zoonosis.db', (err) => {
 db.serialize(() => {
   // Crear tablas si no existen
   db.run(`CREATE TABLE IF NOT EXISTS vecinos (
-    dni TEXT PRIMARY KEY,
+    dni WEXT PRIMARY KEY,
     nombre TEXT,
     telefono TEXT,
     email TEXT,
@@ -57,8 +57,11 @@ db.serialize(() => {
   )`);
 
   // Migración para la tabla turnos
-  db.get(`PRAGMA table_info(turnos)`, (err, columns) => {
-    if (err) return console.error('Error al verificar tabla turnos:', err.message);
+  db.all(`PRAGMA table_info(turnos)`, (err, columns) => {
+    if (err) {
+      console.error('Error al verificar tabla turnos:', err.message);
+      return;
+    }
 
     const hasVeterinarioId = columns.some(col => col.name === 'veterinario_id');
     if (!hasVeterinarioId) {
@@ -78,11 +81,16 @@ db.serialize(() => {
       )`);
 
       db.run(`INSERT INTO turnos_new (id, dni_vecino, mascota_id, puesto, dia, hora, estado)
-              SELECT id, dni_vecino, mascota_id, puesto, dia, hora, estado FROM turnos`);
-
-      db.run(`DROP TABLE turnos`);
-      db.run(`ALTER TABLE turnos_new RENAME TO turnos`);
-      console.log('Migración completada.');
+              SELECT id, dni_vecino, mascota_id, puesto, dia, hora, estado FROM turnos`, (err) => {
+        if (err) console.error('Error al copiar datos:', err.message);
+        db.run(`DROP TABLE turnos`, (err) => {
+          if (err) console.error('Error al eliminar tabla antigua:', err.message);
+          db.run(`ALTER TABLE turnos_new RENAME TO turnos`, (err) => {
+            if (err) console.error('Error al renombrar tabla:', err.message);
+            console.log('Migración completada.');
+          });
+        });
+      });
     } else {
       db.run(`CREATE TABLE IF NOT EXISTS turnos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
