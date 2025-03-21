@@ -43,9 +43,11 @@ function App() {
       if (response.status === 201) {
         alert(response.data.message);
         setDni(datos.dni);
+        obtenerMascotas(datos.dni); // Cargar mascotas inmediatamente
+        obtenerTurnosVecino(datos.dni);
       } else if (response.status === 200 && response.data.message === 'Usuario ya registrado') {
         setDni(datos.dni);
-        obtenerMascotas();
+        obtenerMascotas(datos.dni);
         obtenerTurnosVecino(datos.dni);
       }
     } catch (error) {
@@ -59,15 +61,19 @@ function App() {
     try {
       const response = await axios.post(`${backendUrl}/api/mascotas`, datos);
       alert(response.data.message);
-      obtenerMascotas();
+      obtenerMascotas(dni);
     } catch (error) {
       alert(error.response?.data?.error || 'Error al registrar mascota');
     }
   };
 
-  const obtenerMascotas = async () => {
+  const obtenerMascotas = async (dniToUse = dni) => {
+    if (!dniToUse) {
+      console.error('DNI no definido para obtener mascotas');
+      return;
+    }
     try {
-      const response = await axios.get(`${backendUrl}/api/mascotas/${dni}`);
+      const response = await axios.get(`${backendUrl}/api/mascotas/${dniToUse}`);
       setMascotas(response.data);
     } catch (error) {
       alert('Error al obtener mascotas');
@@ -293,7 +299,7 @@ function App() {
             </form>
 
             <h3>Mis Mascotas</h3>
-            <button onClick={obtenerMascotas}>Actualizar Lista</button>
+            <button onClick={() => obtenerMascotas(dni)}>Actualizar Lista</button>
             <ul>
               {mascotas.length > 0 ? (
                 mascotas.map((m) => (
