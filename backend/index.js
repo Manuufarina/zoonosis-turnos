@@ -15,6 +15,7 @@ const db = new sqlite3.Database('./zoonosis.db', (err) => {
 });
 
 db.serialize(() => {
+  // Crear tablas si no existen
   db.run(`CREATE TABLE IF NOT EXISTS vecinos (
     dni TEXT PRIMARY KEY,
     nombre TEXT,
@@ -55,20 +56,51 @@ db.serialize(() => {
     FOREIGN KEY (puesto_id) REFERENCES puestos(id)
   )`);
 
-  db.run(`CREATE TABLE IF NOT EXISTS turnos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    dni_vecino TEXT,
-    mascota_id INTEGER,
-    puesto TEXT,
-    dia TEXT,
-    hora TEXT,
-    estado TEXT,
-    veterinario_id INTEGER,
-    FOREIGN KEY (dni_vecino) REFERENCES vecinos(dni),
-    FOREIGN KEY (mascota_id) REFERENCES mascotas(id),
-    FOREIGN KEY (veterinario_id) REFERENCES veterinarios(id)
-  )`);
+  // Migración para la tabla turnos
+  db.get(`PRAGMA table_info(turnos)`, (err, columns) => {
+    if (err) return console.error('Error al verificar tabla turnos:', err.message);
 
+    const hasVeterinarioId = columns.some(col => col.name === 'veterinario_id');
+    if (!hasVeterinarioId) {
+      console.log('Migrando tabla turnos para agregar veterinario_id...');
+      db.run(`CREATE TABLE turnos_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        dni_vecino TEXT,
+        mascota_id INTEGER,
+        puesto TEXT,
+        dia TEXT,
+        hora TEXT,
+        estado TEXT,
+        veterinario_id INTEGER,
+        FOREIGN KEY (dni_vecino) REFERENCES vecinos(dni),
+        FOREIGN KEY (mascota_id) REFERENCES mascotas(id),
+        FOREIGN KEY (veterinario_id) REFERENCES veterinarios(id)
+      )`);
+
+      db.run(`INSERT INTO turnos_new (id, dni_vecino, mascota_id, puesto, dia, hora, estado)
+              SELECT id, dni_vecino, mascota_id, puesto, dia, hora, estado FROM turnos`);
+
+      db.run(`DROP TABLE turnos`);
+      db.run(`ALTER TABLE turnos_new RENAME TO turnos`);
+      console.log('Migración completada.');
+    } else {
+      db.run(`CREATE TABLE IF NOT EXISTS turnos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        dni_vecino TEXT,
+        mascota_id INTEGER,
+        puesto TEXT,
+        dia TEXT,
+        hora TEXT,
+        estado TEXT,
+        veterinario_id INTEGER,
+        FOREIGN KEY (dni_vecino) REFERENCES vecinos(dni),
+        FOREIGN KEY (mascota_id) REFERENCES mascotas(id),
+        FOREIGN KEY (veterinario_id) REFERENCES veterinarios(id)
+      )`);
+    }
+  });
+
+  // Precarga de datos
   db.get(`SELECT COUNT(*) as count FROM puestos`, (err, row) => {
     if (row.count === 0) {
       const puestos = [
