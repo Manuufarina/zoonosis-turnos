@@ -190,15 +190,6 @@ app.post('/api/vecinos', (req, res) => {
     const sql = `INSERT INTO vecinos (dni, nombre, telefono, email, direccion, tarjeta_ciudadana) VALUES (?, ?, ?, ?, ?, ?)`;
     db.run(sql, [dni, nombre, telefono, email, direccion, tarjeta_ciudadana], function (err) {
       if (err) return res.status(400).json({ error: 'Error al registrar vecino' });
-      const mailOptions = {
-        from: process.env.EMAIL_USER,
-        to: email,
-        subject: 'Registro Exitoso - Zoonosis San Isidro',
-        text: `Hola ${nombre}, tu registro fue exitoso. DNI: ${dni}`
-      };
-      transporter.sendMail(mailOptions, (error) => {
-        if (error) console.error(error);
-      });
       res.status(201).json({ message: 'Vecino registrado' });
     });
   });
@@ -267,6 +258,46 @@ app.post('/api/horarios', (req, res) => {
   });
 });
 
+app.post('/api/horarios/masivo', (req, res) => {
+  const token = req.headers.authorization;
+  if (!token || jwt.verify(token, process.env.JWT_SECRET).role !== 'admin') {
+    return res.status(403).json({ error: 'Acceso denegado' });
+  }
+
+  const { puesto_id, dia, hora_inicio, hora_fin, veterinario_id } = req.body;
+  if (!puesto_id || !dia || !hora_inicio || !hora_fin || !veterinario_id) {
+    return res.status(400).json({ error: 'Faltan datos obligatorios' });
+  }
+
+  const inicio = new Date(`1970-01-01T${hora_inicio}:00`);
+  const fin = new Date(`1970-01-01T${hora_fin}:00`);
+  const horarios = [];
+  let current = inicio;
+
+  while (current <= fin) {
+    const hora = current.toTimeString().slice(0, 5); // Formato HH:MM
+    horarios.push(hora);
+    current.setHours(current.getHours() + 1); // Intervalo de 1 hora
+  }
+
+  let insertedCount = 0;
+  horarios.forEach((hora) => {
+    db.get(`SELECT * FROM turnos WHERE veterinario_id = ? AND dia = ? AND hora = ? AND estado = 'Reservado'`, 
+      [veterinario_id, dia, hora], (err, turno) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!turno) {
+          db.run(`INSERT INTO horarios (puesto_id, dia, hora) VALUES (?, ?, ?)`, [puesto_id, dia, hora], function (err) {
+            if (err) console.error('Error al insertar horario:', err.message);
+            else insertedCount++;
+            if (insertedCount === horarios.length) {
+              res.json({ message: `${insertedCount} horarios agregados exitosamente` });
+            }
+          });
+        }
+      });
+  });
+});
+
 app.put('/api/horarios/:id', (req, res) => {
   const token = req.headers.authorization;
   if (!token || jwt.verify(token, process.env.JWT_SECRET).role !== 'admin') {
@@ -298,7 +329,6 @@ app.post('/api/turnos', (req, res) => {
     return res.status(400).json({ error: 'Faltan datos obligatorios' });
   }
 
-  // Verificar si el veterinario ya tiene un turno en el mismo día y hora
   db.get(`SELECT * FROM turnos WHERE veterinario_id = ? AND dia = ? AND hora = ? AND estado = 'Reservado'`, 
     [veterinario_id, dia, hora], (err, existingTurno) => {
       if (err) return res.status(500).json({ error: err.message });
@@ -306,7 +336,6 @@ app.post('/api/turnos', (req, res) => {
         return res.status(400).json({ error: 'El veterinario ya tiene un turno asignado en este día y horario' });
       }
 
-      // Verificar disponibilidad del horario
       db.get(`SELECT * FROM horarios WHERE puesto_id = (SELECT id FROM puestos WHERE nombre = ?) AND dia = ? AND hora = ? AND disponible = 1`, 
         [puesto, dia, hora], (err, horario) => {
           if (err) return res.status(500).json({ error: err.message });
@@ -315,8 +344,37 @@ app.post('/api/turnos', (req, res) => {
           const sql = `INSERT INTO turnos (dni_vecino, mascota_id, puesto, dia, hora, estado, veterinario_id) VALUES (?, ?, ?, ?, ?, 'Reservado', ?)`;
           db.run(sql, [dni_vecino, mascota_id, puesto, dia, hora, veterinario_id], function (err) {
             if (err) return res.status(400).json({ error: 'Error al reservar turno: ' + err.message });
-            db.run(`UPDATE horarios SET disponible = 0 WHERE id = ?`, [horario.id]);
-            res.json({ message: 'Turno reservado', id: this.lastID });
+
+            db.run(`UPDATE horarios SET disponible = 0 WHERE id = ?`, [horario.id], (err) => {
+              if (err) console.error('Error al actualizar horario:', err.message);
+            });
+
+            db.get(`SELECT nombre FROM vecinos WHERE dni = ?`, [dni_vecino], (err, vecino) => {
+              if (err) console.error('Error al obtener vecino:', err.message);
+              db.get(`SELECT nombre FROM mascotas WHERE id = ?`, [mascota_id], (err, mascota) => {
+                if (err) console.error('Error al obtener mascota:', err.message);
+
+                const mailOptions = {
+                  from: process.env.EMAIL_USER,
+                  to: req.body.email,
+                  subject: 'Confirmación de Turno - Zoonosis San Isidro',
+                  html: `
+                    <div style="text-align: center;">
+                      <img src="https://www.sanisidro.gob.ar/sites/default/files/Logo%20San%20Isidro%202017.png" alt="Logo Municipio San Isidro" style="width: 200px;">
+                      <p>Estimado Vecino ${vecino?.nombre || ''} DNI ${dni_vecino},</p>
+                      <p>Le confirmamos su turno para castración de su mascota ${mascota?.nombre || ''} para el día ${dia} a las ${hora} en el puesto ${puesto}.</p>
+                      <p>Le pedimos que, de no poder asistir, ingrese al sistema y cancele su turno para habilitárselo a otro vecino.</p>
+                      <p>Desde ya, muchas gracias.</p>
+                      <p><strong>Zoonosis San Isidro</strong></p>
+                    </div>
+                  `
+                };
+                transporter.sendMail(mailOptions, (error) => {
+                  if (error) console.error('Error al enviar email:', error);
+                });
+                res.json({ message: 'Turno reservado', id: this.lastID });
+              });
+            });
           });
         });
     });

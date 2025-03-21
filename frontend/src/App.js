@@ -10,6 +10,7 @@ function App() {
   const [mascota, setMascota] = useState({ nombre: '', raza: '', edad: '', peso: '' });
   const [turno, setTurno] = useState({ mascota_id: '', puesto: '', dia: '', hora: '', veterinario_id: '' });
   const [nuevoHorario, setNuevoHorario] = useState({ puesto_id: '', dia: '', hora: '' });
+  const [masivoHorario, setMasivoHorario] = useState({ puesto_id: '', dia: '', hora_inicio: '', hora_fin: '', veterinario_id: '' });
   const [editHorario, setEditHorario] = useState(null);
   const [mascotas, setMascotas] = useState([]);
   const [puestos, setPuestos] = useState([]);
@@ -171,6 +172,20 @@ function App() {
       setNuevoHorario({ puesto_id: '', dia: '', hora: '' });
     } catch (error) {
       alert(error.response?.data?.error || 'Error al agregar horario');
+    }
+  };
+
+  const agregarHorariosMasivo = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await axios.post(`${backendUrl}/api/horarios/masivo`, masivoHorario, {
+        headers: { Authorization: token }
+      });
+      alert(response.data.message);
+      obtenerHorariosAdmin();
+      setMasivoHorario({ puesto_id: '', dia: '', hora_inicio: '', hora_fin: '', veterinario_id: '' });
+    } catch (error) {
+      alert(error.response?.data?.error || 'Error al agregar horarios masivos');
     }
   };
 
@@ -540,6 +555,7 @@ function App() {
 
           <h3>Gestionar Horarios</h3>
           <form onSubmit={agregarHorario}>
+            <h4>Agregar Horario Individual</h4>
             <select
               value={nuevoHorario.puesto_id}
               onChange={(e) => setNuevoHorario({ ...nuevoHorario, puesto_id: e.target.value })}
@@ -566,6 +582,54 @@ function App() {
               required
             />
             <button type="submit">Agregar Horario</button>
+          </form>
+
+          <form onSubmit={agregarHorariosMasivo}>
+            <h4>Agregar Horarios Masivos</h4>
+            <select
+              value={masivoHorario.puesto_id}
+              onChange={(e) => setMasivoHorario({ ...masivoHorario, puesto_id: e.target.value })}
+              required
+            >
+              <option value="">Seleccionar Puesto</option>
+              {puestos.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nombre}
+                </option>
+              ))}
+            </select>
+            <input
+              type="date"
+              value={masivoHorario.dia}
+              onChange={(e) => setMasivoHorario({ ...masivoHorario, dia: e.target.value })}
+              min={new Date().toISOString().split("T")[0]}
+              required
+            />
+            <input
+              type="time"
+              value={masivoHorario.hora_inicio}
+              onChange={(e) => setMasivoHorario({ ...masivoHorario, hora_inicio: e.target.value })}
+              required
+            />
+            <input
+              type="time"
+              value={masivoHorario.hora_fin}
+              onChange={(e) => setMasivoHorario({ ...masivoHorario, hora_fin: e.target.value })}
+              required
+            />
+            <select
+              value={masivoHorario.veterinario_id}
+              onChange={(e) => setMasivoHorario({ ...masivoHorario, veterinario_id: e.target.value })}
+              required
+            >
+              <option value="">Seleccionar Veterinario</option>
+              {veterinarios.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.nombre}
+                </option>
+              ))}
+            </select>
+            <button type="submit">Agregar Horarios Masivos</button>
           </form>
 
           {editHorario && (
