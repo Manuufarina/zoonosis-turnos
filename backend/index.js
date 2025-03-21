@@ -349,19 +349,31 @@ app.post('/api/turnos', (req, res) => {
               if (err) console.error('Error al actualizar horario:', err.message);
             });
 
-            db.get(`SELECT nombre FROM vecinos WHERE dni = ?`, [dni_vecino], (err, vecino) => {
-              if (err) console.error('Error al obtener vecino:', err.message);
+            // Obtener datos para el email
+            db.get(`SELECT nombre, email FROM vecinos WHERE dni = ?`, [dni_vecino], (err, vecino) => {
+              if (err) {
+                console.error('Error al obtener vecino:', err.message);
+                return res.status(500).json({ error: 'Error al procesar el turno' });
+              }
+              if (!vecino || !vecino.email) {
+                console.error('No se encontró email para el vecino con DNI:', dni_vecino);
+                return res.json({ message: 'Turno reservado, pero no se pudo enviar el email' });
+              }
+
               db.get(`SELECT nombre FROM mascotas WHERE id = ?`, [mascota_id], (err, mascota) => {
-                if (err) console.error('Error al obtener mascota:', err.message);
+                if (err) {
+                  console.error('Error al obtener mascota:', err.message);
+                  return res.status(500).json({ error: 'Error al procesar el turno' });
+                }
 
                 const mailOptions = {
                   from: process.env.EMAIL_USER,
-                  to: req.body.email,
+                  to: vecino.email,
                   subject: 'Confirmación de Turno - Zoonosis San Isidro',
                   html: `
                     <div style="text-align: center;">
                       <img src="https://www.sanisidro.gob.ar/sites/default/files/Logo%20San%20Isidro%202017.png" alt="Logo Municipio San Isidro" style="width: 200px;">
-                      <p>Estimado Vecino ${vecino?.nombre || ''} DNI ${dni_vecino},</p>
+                      <p>Estimado Vecino ${vecino.nombre || ''} DNI ${dni_vecino},</p>
                       <p>Le confirmamos su turno para castración de su mascota ${mascota?.nombre || ''} para el día ${dia} a las ${hora} en el puesto ${puesto}.</p>
                       <p>Le pedimos que, de no poder asistir, ingrese al sistema y cancele su turno para habilitárselo a otro vecino.</p>
                       <p>Desde ya, muchas gracias.</p>
