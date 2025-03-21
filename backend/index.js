@@ -212,13 +212,13 @@ app.get('/api/puestos', (req, res) => {
 });
 
 app.get('/api/horarios/:puesto_id', (req, res) => {
-  const { puesto_id } = req.params;
-  const sql = `SELECT * FROM horarios WHERE puesto_id = ? AND disponible = 1`;
-  db.all(sql, [puesto_id], (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
+    const { puesto_id } = req.params;
+    const sql = `SELECT * FROM horarios WHERE puesto_id = ? AND disponible = 1`;
+    db.all(sql, [puesto_id], (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(rows);
+    });
   });
-});
 
 app.post('/api/turnos', (req, res) => {
   const { dni_vecino, mascota_id, puesto, dia, hora } = req.body;
