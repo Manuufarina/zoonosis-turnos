@@ -8,17 +8,28 @@ const app = express();
 const port = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'tu_secreto_super_seguro';
 
+const allowedOrigins = ['http://localhost:3000', 'https://zoonosis-turnos.vercel.app'];
+
 app.use(cors({
-    origin: 'https://zoonosis-turnos.vercel.app',
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-  }));
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
+
 app.use(express.json());
 
+// Conectar a la base de datos SQLite
 const db = new sqlite3.Database('./zoonosis.db', (err) => {
   if (err) console.error(err.message);
   console.log('Conectado a la base de datos.');
 });
+
+// Resto del código...
 
 db.serialize(() => {
   db.run(`CREATE TABLE IF NOT EXISTS vecinos (

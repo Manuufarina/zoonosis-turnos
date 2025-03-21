@@ -16,7 +16,7 @@ function App() {
   const [horarios, setHorarios] = useState([]);
   const [turnos, setTurnos] = useState([]);
   const [horariosAdmin, setHorariosAdmin] = useState([]);
-  const backendUrl = 'https://zoonosis-backend.onrender.com'; // URL de producción
+  const backendUrl = 'https://zoonosis-backend.onrender.com';
 
   useEffect(() => {
     if (token) {
@@ -157,7 +157,7 @@ function App() {
       obtenerHorariosAdmin();
       setEditHorario(null);
     } catch (error) {
-      alert('Error al editar horario');
+      alert(error.response?.data?.error || 'Error al editar horario');
     }
   };
 
@@ -440,21 +440,27 @@ function App() {
               </tr>
             </thead>
             <tbody>
-              {horariosAdmin.map((h) => (
-                <tr key={h.id}>
-                  <td>{h.id}</td>
-                  <td>{h.sucursal}</td>
-                  <td>{h.dia}</td>
-                  <td>{h.hora}</td>
-                  <td>{h.disponible ? 'Sí' : 'No'}</td>
-                  <td>
-                    <button onClick={() => setEditHorario({ id: h.id, sucursal_id: sucursales.find(s => s.nombre === h.sucursal)?.id, dia: h.dia, hora: h.hora })}>
-                      Editar
-                    </button>
-                    <button onClick={() => eliminarHorario(h.id)}>Eliminar</button>
-                  </td>
+              {horariosAdmin.length > 0 ? (
+                horariosAdmin.map((h) => (
+                  <tr key={h.id}>
+                    <td>{h.id}</td>
+                    <td>{h.sucursal}</td>
+                    <td>{h.dia}</td>
+                    <td>{h.hora}</td>
+                    <td>{h.disponible ? 'Sí' : 'No'}</td>
+                    <td>
+                      <button onClick={() => setEditHorario({ id: h.id, sucursal_id: sucursales.find(s => s.nombre === h.sucursal)?.id, dia: h.dia, hora: h.hora })}>
+                        Editar
+                      </button>
+                      <button onClick={() => eliminarHorario(h.id)}>Eliminar</button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="6">No hay horarios disponibles</td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
