@@ -69,7 +69,6 @@ db.serialize(() => {
     FOREIGN KEY (veterinario_id) REFERENCES veterinarios(id)
   )`);
 
-  // Precarga de puestos
   db.get(`SELECT COUNT(*) as count FROM puestos`, (err, row) => {
     if (row.count === 0) {
       const puestos = [
@@ -93,7 +92,6 @@ db.serialize(() => {
     }
   });
 
-  // Precarga de veterinarios
   db.get(`SELECT COUNT(*) as count FROM veterinarios`, (err, row) => {
     if (row.count === 0) {
       const veterinarios = [
@@ -107,7 +105,6 @@ db.serialize(() => {
     }
   });
 
-  // Precarga de horarios
   db.get(`SELECT COUNT(*) as count FROM horarios`, (err, row) => {
     if (row.count === 0) {
       db.run(`INSERT INTO horarios (puesto_id, dia, hora) VALUES (1, '2025-03-25', '10:00')`);
@@ -236,6 +233,9 @@ app.delete('/api/horarios/:id', (req, res) => {
 
 app.post('/api/turnos', (req, res) => {
   const { dni_vecino, mascota_id, puesto, dia, hora, veterinario_id } = req.body;
+  if (!dni_vecino || !mascota_id || !puesto || !dia || !hora || !veterinario_id) {
+    return res.status(400).json({ error: 'Faltan datos obligatorios' });
+  }
   db.get(`SELECT * FROM horarios WHERE puesto_id = (SELECT id FROM puestos WHERE nombre = ?) AND dia = ? AND hora = ? AND disponible = 1`, 
     [puesto, dia, hora], (err, horario) => {
       if (err) return res.status(500).json({ error: err.message });
@@ -243,7 +243,7 @@ app.post('/api/turnos', (req, res) => {
 
       const sql = `INSERT INTO turnos (dni_vecino, mascota_id, puesto, dia, hora, estado, veterinario_id) VALUES (?, ?, ?, ?, ?, 'Reservado', ?)`;
       db.run(sql, [dni_vecino, mascota_id, puesto, dia, hora, veterinario_id], function (err) {
-        if (err) return res.status(400).json({ error: 'Error al reservar turno' });
+        if (err) return res.status(400).json({ error: 'Error al reservar turno: ' + err.message });
         db.run(`UPDATE horarios SET disponible = 0 WHERE id = ?`, [horario.id]);
         res.json({ message: 'Turno reservado', id: this.lastID });
       });
@@ -259,7 +259,7 @@ app.get('/api/turnos', (req, res) => {
           FROM turnos t 
           JOIN vecinos v ON t.dni_vecino = v.dni 
           JOIN mascotas m ON t.mascota_id = m.id 
-          JOIN veterinarios vet ON t.veterinario_id = vet.id`, (err, rows) => {
+          LEFT JOIN veterinarios vet ON t.veterinario_id = vet.id`, (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
   });
@@ -271,7 +271,7 @@ app.get('/api/turnos/vecino/:dni', (req, res) => {
           FROM turnos t 
           JOIN vecinos v ON t.dni_vecino = v.dni 
           JOIN mascotas m ON t.mascota_id = m.id 
-          JOIN veterinarios vet ON t.veterinario_id = vet.id 
+          LEFT JOIN veterinarios vet ON t.veterinario_id = vet.id 
           WHERE t.dni_vecino = ?`, [dni], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
