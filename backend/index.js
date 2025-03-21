@@ -9,7 +9,6 @@ const port = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'tu_secreto_super_seguro';
 
 const allowedOrigins = ['http://localhost:3000', 'https://zoonosis-turnos.vercel.app'];
-
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || allowedOrigins.includes(origin)) {
@@ -20,16 +19,12 @@ app.use(cors({
   },
   credentials: true
 }));
-
 app.use(express.json());
 
-// Conectar a la base de datos SQLite
 const db = new sqlite3.Database('./zoonosis.db', (err) => {
   if (err) console.error(err.message);
   console.log('Conectado a la base de datos.');
 });
-
-// Resto del código...
 
 db.serialize(() => {
   db.run(`CREATE TABLE IF NOT EXISTS vecinos (
@@ -55,7 +50,7 @@ db.serialize(() => {
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     dni_vecino TEXT,
     mascota_id INTEGER,
-    sucursal TEXT,
+    puesto TEXT,
     dia TEXT,
     hora TEXT,
     estado TEXT,
@@ -63,7 +58,7 @@ db.serialize(() => {
     FOREIGN KEY (mascota_id) REFERENCES mascotas(id)
   )`);
 
-  db.run(`CREATE TABLE IF NOT EXISTS sucursales (
+  db.run(`CREATE TABLE IF NOT EXISTS puestos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre TEXT,
     direccion TEXT
@@ -71,11 +66,11 @@ db.serialize(() => {
 
   db.run(`CREATE TABLE IF NOT EXISTS horarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    sucursal_id INTEGER,
+    puesto_id INTEGER,
     dia TEXT,
     hora TEXT,
     disponible INTEGER DEFAULT 1,
-    FOREIGN KEY (sucursal_id) REFERENCES sucursales(id)
+    FOREIGN KEY (puesto_id) REFERENCES puestos(id)
   )`);
 
   db.run(`CREATE TABLE IF NOT EXISTS admins (
@@ -84,18 +79,56 @@ db.serialize(() => {
     password TEXT
   )`);
 
-  db.get(`SELECT COUNT(*) as count FROM sucursales`, (err, row) => {
+  // Precargar puestos
+  db.get(`SELECT COUNT(*) as count FROM puestos`, (err, row) => {
     if (row.count === 0) {
-      db.run(`INSERT INTO sucursales (nombre, direccion) VALUES ('Zoonosis Central', 'Av. Central 123')`);
-      db.run(`INSERT INTO sucursales (nombre, direccion) VALUES ('Sucursal Norte', 'Calle Norte 456')`);
+      const puestos = [
+        ['Sede Central', 'Av. Central 123'],
+        ['Hospital de Boulogne', 'Boulogne'],
+        ['Subdelegacion Beccar', 'Beccar'],
+        ['Plaza 9 de Julio', 'San Isidro'],
+        ['Sede CAVA 1', 'San Isidro'],
+        ['Plaza Stella Maris', 'San Isidro'],
+        ['CAPS Barrio Obrero', 'Barrio Obrero'],
+        ['Delegacion de Beccar', 'Beccar'],
+        ['Delegacion de Boulogne', 'Boulogne'],
+        ['Delegacion Bajo Boulogne', 'Bajo Boulogne'],
+        ['Subdelegacion Martinez (Centro 35)', 'Martinez'],
+        ['Plaza Brown', 'San Isidro'],
+        ['Merendero Municipal Barrio San Cayetano', 'San Cayetano'],
+        ['Sede CAVA 2', 'San Isidro'],
+        ['Delegacion Las Lomas', 'Las Lomas'],
+        ['Barrio San Isidro (BASI)', 'San Isidro'],
+        ['Polideportivo Bajo Boulogne', 'Bajo Boulogne'],
+        ['Delegacion La Horqueta', 'La Horqueta'],
+        ['Plaza Belgrano', 'San Isidro'],
+        ['Paseo de los Inmigrantes', 'San Isidro'],
+        ['Barrio 20 de Junio', 'San Isidro'],
+        ['Barrio Jardín (Iglesia San Benito)', 'San Isidro'],
+        ['CAPS Bajo San Isidro', 'Bajo San Isidro'],
+        ['Barrio Angelita', 'San Isidro'],
+        ['Barrio Granaderos', 'San Isidro'],
+        ['Barrio Los Sauces', 'San Isidro'],
+        ['Barrio Uruguay y Beccar', 'Beccar'],
+        ['Barrio los Perales', 'San Isidro'],
+        ['Barrio Obrero', 'Barrio Obrero'],
+        ['Barrio Estación', 'San Isidro'],
+        ['Barrio Santa Rita', 'San Isidro'],
+        ['Barrio Santa Ana', 'San Isidro'],
+        ['Barrio El Congo', 'San Isidro']
+      ];
+      puestos.forEach(([nombre, direccion]) => {
+        db.run(`INSERT INTO puestos (nombre, direccion) VALUES (?, ?)`, [nombre, direccion]);
+      });
     }
   });
 
+  // Precargar horarios iniciales (ejemplo)
   db.get(`SELECT COUNT(*) as count FROM horarios`, (err, row) => {
     if (row.count === 0) {
-      db.run(`INSERT INTO horarios (sucursal_id, dia, hora) VALUES (1, '2025-03-25', '10:00')`);
-      db.run(`INSERT INTO horarios (sucursal_id, dia, hora) VALUES (1, '2025-03-25', '11:00')`);
-      db.run(`INSERT INTO horarios (sucursal_id, dia, hora) VALUES (2, '2025-03-26', '14:00')`);
+      db.run(`INSERT INTO horarios (puesto_id, dia, hora) VALUES (1, '2025-03-25', '10:00')`);
+      db.run(`INSERT INTO horarios (puesto_id, dia, hora) VALUES (1, '2025-03-25', '11:00')`);
+      db.run(`INSERT INTO horarios (puesto_id, dia, hora) VALUES (2, '2025-03-26', '14:00')`);
     }
   });
 
@@ -170,38 +203,38 @@ app.get('/api/mascotas/:dni', (req, res) => {
   });
 });
 
-app.get('/api/sucursales', (req, res) => {
-  const sql = `SELECT * FROM sucursales`;
+app.get('/api/puestos', (req, res) => {
+  const sql = `SELECT * FROM puestos`;
   db.all(sql, [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
   });
 });
 
-app.get('/api/horarios/:sucursal_id', (req, res) => {
-  const { sucursal_id } = req.params;
-  const sql = `SELECT * FROM horarios WHERE sucursal_id = ? AND disponible = 1`;
-  db.all(sql, [sucursal_id], (err, rows) => {
+app.get('/api/horarios/:puesto_id', (req, res) => {
+  const { puesto_id } = req.params;
+  const sql = `SELECT * FROM horarios WHERE puesto_id = ? AND disponible = 1`;
+  db.all(sql, [puesto_id], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
   });
 });
 
 app.post('/api/turnos', (req, res) => {
-  const { dni_vecino, mascota_id, sucursal, dia, hora } = req.body;
+  const { dni_vecino, mascota_id, puesto, dia, hora } = req.body;
   const mes = dia.substring(0, 7);
   const sqlCheckTurno = `SELECT COUNT(*) as count FROM turnos WHERE dni_vecino = ? AND dia LIKE ? AND estado = 'Reservado'`;
   db.get(sqlCheckTurno, [dni_vecino, `${mes}%`], (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
     if (row.count > 0) return res.status(400).json({ error: 'Ya tienes un turno este mes' });
 
-    const sqlCheckHorario = `SELECT id FROM horarios WHERE sucursal_id = (SELECT id FROM sucursales WHERE nombre = ?) AND dia = ? AND hora = ? AND disponible = 1`;
-    db.get(sqlCheckHorario, [sucursal, dia, hora], (err, horario) => {
+    const sqlCheckHorario = `SELECT id FROM horarios WHERE puesto_id = (SELECT id FROM puestos WHERE nombre = ?) AND dia = ? AND hora = ? AND disponible = 1`;
+    db.get(sqlCheckHorario, [puesto, dia, hora], (err, horario) => {
       if (err) return res.status(500).json({ error: err.message });
       if (!horario) return res.status(400).json({ error: 'Horario no disponible' });
 
-      const sqlInsert = `INSERT INTO turnos (dni_vecino, mascota_id, sucursal, dia, hora, estado) VALUES (?, ?, ?, ?, ?, 'Reservado')`;
-      db.run(sqlInsert, [dni_vecino, mascota_id, sucursal, dia, hora], function (err) {
+      const sqlInsert = `INSERT INTO turnos (dni_vecino, mascota_id, puesto, dia, hora, estado) VALUES (?, ?, ?, ?, ?, 'Reservado')`;
+      db.run(sqlInsert, [dni_vecino, mascota_id, puesto, dia, hora], function (err) {
         if (err) return res.status(400).json({ error: 'Error al reservar turno' });
 
         db.run(`UPDATE horarios SET disponible = 0 WHERE id = ?`, [horario.id]);
@@ -212,7 +245,7 @@ app.post('/api/turnos', (req, res) => {
             from: process.env.EMAIL_USER,
             to: vecino.email,
             subject: 'Turno Reservado - Zoonosis San Isidro',
-            text: `Hola ${vecino.nombre}, tu turno fue reservado para el ${dia} a las ${hora} en ${sucursal}.`,
+            text: `Hola ${vecino.nombre}, tu turno fue reservado para el ${dia} a las ${hora} en ${puesto}.`,
           };
           transporter.sendMail(mailOptions, (error) => {
             if (error) console.error(error);
@@ -225,7 +258,7 @@ app.post('/api/turnos', (req, res) => {
 });
 
 app.get('/api/turnos', verifyToken, (req, res) => {
-  const sql = `SELECT t.id, t.dni_vecino, v.nombre AS vecino_nombre, m.nombre AS mascota_nombre, t.sucursal, t.dia, t.hora, t.estado 
+  const sql = `SELECT t.id, t.dni_vecino, v.nombre AS vecino_nombre, m.nombre AS mascota_nombre, t.puesto, t.dia, t.hora, t.estado 
                FROM turnos t 
                JOIN vecinos v ON t.dni_vecino = v.dni 
                JOIN mascotas m ON t.mascota_id = m.id`;
@@ -237,22 +270,21 @@ app.get('/api/turnos', verifyToken, (req, res) => {
 
 app.put('/api/turnos/:id/cancelar', verifyToken, (req, res) => {
   const { id } = req.params;
-  db.get(`SELECT sucursal, dia, hora FROM turnos WHERE id = ?`, [id], (err, turno) => {
+  db.get(`SELECT puesto, dia, hora FROM turnos WHERE id = ?`, [id], (err, turno) => {
     if (err || !turno) return res.status(400).json({ error: 'Turno no encontrado' });
     const sql = `UPDATE turnos SET estado = 'Cancelado' WHERE id = ?`;
     db.run(sql, [id], function (err) {
       if (err) return res.status(400).json({ error: 'Error al cancelar turno' });
-      db.run(`UPDATE horarios SET disponible = 1 WHERE sucursal_id = (SELECT id FROM sucursales WHERE nombre = ?) AND dia = ? AND hora = ?`, [turno.sucursal, turno.dia, turno.hora]);
+      db.run(`UPDATE horarios SET disponible = 1 WHERE puesto_id = (SELECT id FROM puestos WHERE nombre = ?) AND dia = ? AND hora = ?`, [turno.puesto, turno.dia, turno.hora]);
       res.json({ message: 'Turno cancelado' });
     });
   });
 });
 
-// Rutas para gestionar horarios (Admin)
 app.get('/api/horarios', verifyToken, (req, res) => {
-  const sql = `SELECT h.id, s.nombre AS sucursal, h.dia, h.hora, h.disponible 
+  const sql = `SELECT h.id, s.nombre AS puesto, h.dia, h.hora, h.disponible 
                FROM horarios h 
-               JOIN sucursales s ON h.sucursal_id = s.id`;
+               JOIN puestos s ON h.puesto_id = s.id`;
   db.all(sql, [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
@@ -260,21 +292,42 @@ app.get('/api/horarios', verifyToken, (req, res) => {
 });
 
 app.post('/api/horarios', verifyToken, (req, res) => {
-  const { sucursal_id, dia, hora } = req.body;
-  const sql = `INSERT INTO horarios (sucursal_id, dia, hora) VALUES (?, ?, ?)`;
-  db.run(sql, [sucursal_id, dia, hora], function (err) {
-    if (err) return res.status(400).json({ error: 'Error al agregar horario' });
-    res.status(201).json({ message: 'Horario agregado', id: this.lastID });
+  const { puesto_id, dia, hora } = req.body;
+  const hoy = new Date();
+  const fechaIngresada = new Date(dia);
+  if (fechaIngresada < hoy.setHours(0, 0, 0, 0)) {
+    return res.status(400).json({ error: 'No se pueden agregar horarios en fechas pasadas' });
+  }
+  const sqlCheck = `SELECT COUNT(*) as count FROM horarios WHERE puesto_id = ? AND dia = ? AND hora = ?`;
+  db.get(sqlCheck, [puesto_id, dia, hora], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (row.count > 0) return res.status(400).json({ error: 'Ya existe un horario para este puesto, día y hora' });
+    const sql = `INSERT INTO horarios (puesto_id, dia, hora) VALUES (?, ?, ?)`;
+    db.run(sql, [puesto_id, dia, hora], function (err) {
+      if (err) return res.status(400).json({ error: 'Error al agregar horario' });
+      res.status(201).json({ message: 'Horario agregado', id: this.lastID });
+    });
   });
 });
 
 app.put('/api/horarios/:id', verifyToken, (req, res) => {
   const { id } = req.params;
-  const { dia, hora } = req.body;
-  const sql = `UPDATE horarios SET dia = ?, hora = ? WHERE id = ?`;
-  db.run(sql, [dia, hora, id], function (err) {
-    if (err) return res.status(400).json({ error: 'Error al modificar horario' });
-    res.json({ message: 'Horario modificado' });
+  const { puesto_id, dia, hora } = req.body;
+  const hoy = new Date();
+  const fechaIngresada = new Date(dia);
+  if (fechaIngresada < hoy.setHours(0, 0, 0, 0)) {
+    return res.status(400).json({ error: 'No se pueden editar horarios a fechas pasadas' });
+  }
+  const sqlCheck = `SELECT COUNT(*) as count FROM horarios WHERE puesto_id = ? AND dia = ? AND hora = ? AND id != ?`;
+  db.get(sqlCheck, [puesto_id, dia, hora, id], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (row.count > 0) return res.status(400).json({ error: 'Ya existe otro horario para este puesto, día y hora' });
+    const sql = `UPDATE horarios SET puesto_id = ?, dia = ?, hora = ? WHERE id = ?`;
+    db.run(sql, [puesto_id, dia, hora, id], function (err) {
+      if (err) return res.status(400).json({ error: 'Error al modificar horario' });
+      if (this.changes === 0) return res.status(404).json({ error: 'Horario no encontrado' });
+      res.json({ message: 'Horario modificado' });
+    });
   });
 });
 

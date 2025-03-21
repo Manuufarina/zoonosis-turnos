@@ -8,11 +8,11 @@ function App() {
   const [adminLogin, setAdminLogin] = useState({ username: '', password: '' });
   const [token, setToken] = useState(null);
   const [mascota, setMascota] = useState({ nombre: '', raza: '', edad: '', peso: '' });
-  const [turno, setTurno] = useState({ mascota_id: '', sucursal: '', dia: '', hora: '' });
-  const [nuevoHorario, setNuevoHorario] = useState({ sucursal_id: '', dia: '', hora: '' });
+  const [turno, setTurno] = useState({ mascota_id: '', puesto: '', dia: '', hora: '' });
+  const [nuevoHorario, setNuevoHorario] = useState({ puesto_id: '', dia: '', hora: '' });
   const [editHorario, setEditHorario] = useState(null);
   const [mascotas, setMascotas] = useState([]);
-  const [sucursales, setSucursales] = useState([]);
+  const [puestos, setPuestos] = useState([]);
   const [horarios, setHorarios] = useState([]);
   const [turnos, setTurnos] = useState([]);
   const [horariosAdmin, setHorariosAdmin] = useState([]);
@@ -23,7 +23,7 @@ function App() {
       obtenerTurnos();
       obtenerHorariosAdmin();
     } else if (!isAdmin) {
-      obtenerSucursales();
+      obtenerPuestos();
     }
   }, [token, isAdmin]);
 
@@ -67,18 +67,18 @@ function App() {
     }
   };
 
-  const obtenerSucursales = async () => {
+  const obtenerPuestos = async () => {
     try {
-      const response = await axios.get(`${backendUrl}/api/sucursales`);
-      setSucursales(response.data);
+      const response = await axios.get(`${backendUrl}/api/puestos`);
+      setPuestos(response.data);
     } catch (error) {
-      alert('Error al obtener sucursales');
+      alert('Error al obtener puestos');
     }
   };
 
-  const obtenerHorarios = async (sucursal_id) => {
+  const obtenerHorarios = async (puesto_id) => {
     try {
-      const response = await axios.get(`${backendUrl}/api/horarios/${sucursal_id}`);
+      const response = await axios.get(`${backendUrl}/api/horarios/${puesto_id}`);
       setHorarios(response.data);
     } catch (error) {
       alert('Error al obtener horarios');
@@ -141,9 +141,9 @@ function App() {
       });
       alert(response.data.message);
       obtenerHorariosAdmin();
-      setNuevoHorario({ sucursal_id: '', dia: '', hora: '' });
+      setNuevoHorario({ puesto_id: '', dia: '', hora: '' });
     } catch (error) {
-      alert('Error al agregar horario');
+      alert(error.response?.data?.error || 'Error al agregar horario');
     }
   };
 
@@ -293,18 +293,18 @@ function App() {
                 ))}
               </select>
               <select
-                value={turno.sucursal}
+                value={turno.puesto}
                 onChange={(e) => {
-                  setTurno({ ...turno, sucursal: e.target.value });
-                  const sucursalId = sucursales.find(s => s.nombre === e.target.value)?.id;
-                  if (sucursalId) obtenerHorarios(sucursalId);
+                  setTurno({ ...turno, puesto: e.target.value });
+                  const puestoId = puestos.find(s => s.nombre === e.target.value)?.id;
+                  if (puestoId) obtenerHorarios(puestoId);
                 }}
                 required
               >
-                <option value="">Seleccionar Sucursal</option>
-                {sucursales.map((s) => (
-                  <option key={s.id} value={s.nombre}>
-                    {s.nombre}
+                <option value="">Seleccionar Puesto</option>
+                {puestos.map((p) => (
+                  <option key={p.id} value={p.nombre}>
+                    {p.nombre}
                   </option>
                 ))}
               </select>
@@ -340,7 +340,7 @@ function App() {
                 <th>ID</th>
                 <th>Vecino</th>
                 <th>Mascota</th>
-                <th>Sucursal</th>
+                <th>Puesto</th>
                 <th>Día</th>
                 <th>Hora</th>
                 <th>Estado</th>
@@ -353,7 +353,7 @@ function App() {
                   <td>{t.id}</td>
                   <td>{t.vecino_nombre} ({t.dni_vecino})</td>
                   <td>{t.mascota_nombre}</td>
-                  <td>{t.sucursal}</td>
+                  <td>{t.puesto}</td>
                   <td>{t.dia}</td>
                   <td>{t.hora}</td>
                   <td>{t.estado}</td>
@@ -370,14 +370,14 @@ function App() {
           <h3>Gestionar Horarios</h3>
           <form onSubmit={agregarHorario}>
             <select
-              value={nuevoHorario.sucursal_id}
-              onChange={(e) => setNuevoHorario({ ...nuevoHorario, sucursal_id: e.target.value })}
+              value={nuevoHorario.puesto_id}
+              onChange={(e) => setNuevoHorario({ ...nuevoHorario, puesto_id: e.target.value })}
               required
             >
-              <option value="">Seleccionar Sucursal</option>
-              {sucursales.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.nombre}
+              <option value="">Seleccionar Puesto</option>
+              {puestos.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nombre}
                 </option>
               ))}
             </select>
@@ -385,6 +385,7 @@ function App() {
               type="date"
               value={nuevoHorario.dia}
               onChange={(e) => setNuevoHorario({ ...nuevoHorario, dia: e.target.value })}
+              min={new Date().toISOString().split("T")[0]}
               required
             />
             <input
@@ -397,34 +398,46 @@ function App() {
           </form>
 
           {editHorario && (
-            <form onSubmit={editarHorario}>
+            <form onSubmit={editarHorario} className="edit-form">
               <h4>Editar Horario ID: {editHorario.id}</h4>
-              <select
-                value={editHorario.sucursal_id}
-                onChange={(e) => setEditHorario({ ...editHorario, sucursal_id: e.target.value })}
-                required
-              >
-                <option value="">Seleccionar Sucursal</option>
-                {sucursales.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.nombre}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="date"
-                value={editHorario.dia}
-                onChange={(e) => setEditHorario({ ...editHorario, dia: e.target.value })}
-                required
-              />
-              <input
-                type="time"
-                value={editHorario.hora}
-                onChange={(e) => setEditHorario({ ...editHorario, hora: e.target.value })}
-                required
-              />
-              <button type="submit">Guardar Cambios</button>
-              <button type="button" onClick={() => setEditHorario(null)}>Cancelar</button>
+              <label>
+                Puesto:
+                <select
+                  value={editHorario.puesto_id}
+                  onChange={(e) => setEditHorario({ ...editHorario, puesto_id: e.target.value })}
+                  required
+                >
+                  <option value="">Seleccionar Puesto</option>
+                  {puestos.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nombre}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Día:
+                <input
+                  type="date"
+                  value={editHorario.dia}
+                  onChange={(e) => setEditHorario({ ...editHorario, dia: e.target.value })}
+                  min={new Date().toISOString().split("T")[0]}
+                  required
+                />
+              </label>
+              <label>
+                Hora:
+                <input
+                  type="time"
+                  value={editHorario.hora}
+                  onChange={(e) => setEditHorario({ ...editHorario, hora: e.target.value })}
+                  required
+                />
+              </label>
+              <div>
+                <button type="submit">Guardar Cambios</button>
+                <button type="button" onClick={() => setEditHorario(null)}>Cancelar</button>
+              </div>
             </form>
           )}
 
@@ -432,7 +445,7 @@ function App() {
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Sucursal</th>
+                <th>Puesto</th>
                 <th>Día</th>
                 <th>Hora</th>
                 <th>Disponible</th>
@@ -444,12 +457,12 @@ function App() {
                 horariosAdmin.map((h) => (
                   <tr key={h.id}>
                     <td>{h.id}</td>
-                    <td>{h.sucursal}</td>
+                    <td>{h.puesto}</td>
                     <td>{h.dia}</td>
                     <td>{h.hora}</td>
                     <td>{h.disponible ? 'Sí' : 'No'}</td>
                     <td>
-                      <button onClick={() => setEditHorario({ id: h.id, sucursal_id: sucursales.find(s => s.nombre === h.sucursal)?.id, dia: h.dia, hora: h.hora })}>
+                      <button onClick={() => setEditHorario({ id: h.id, puesto_id: puestos.find(s => s.nombre === h.puesto)?.id, dia: h.dia, hora: h.hora })}>
                         Editar
                       </button>
                       <button onClick={() => eliminarHorario(h.id)}>Eliminar</button>
