@@ -15,9 +15,8 @@ const db = new sqlite3.Database('./zoonosis.db', (err) => {
 });
 
 db.serialize(() => {
-  // Crear tablas si no existen
   db.run(`CREATE TABLE IF NOT EXISTS vecinos (
-    dni WEXT PRIMARY KEY,
+    dni TEXT PRIMARY KEY,
     nombre TEXT,
     telefono TEXT,
     email TEXT,
@@ -56,43 +55,64 @@ db.serialize(() => {
     FOREIGN KEY (puesto_id) REFERENCES puestos(id)
   )`);
 
-  // Migración para la tabla turnos
-  db.all(`PRAGMA table_info(turnos)`, (err, columns) => {
+  db.get(`SELECT name FROM sqlite_master WHERE type='table' AND name='turnos'`, (err, table) => {
     if (err) {
-      console.error('Error al verificar tabla turnos:', err.message);
+      console.error('Error al verificar existencia de turnos:', err.message);
       return;
     }
 
-    const hasVeterinarioId = columns.some(col => col.name === 'veterinario_id');
-    if (!hasVeterinarioId) {
-      console.log('Migrando tabla turnos para agregar veterinario_id...');
-      db.run(`CREATE TABLE turnos_new (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        dni_vecino TEXT,
-        mascota_id INTEGER,
-        puesto TEXT,
-        dia TEXT,
-        hora TEXT,
-        estado TEXT,
-        veterinario_id INTEGER,
-        FOREIGN KEY (dni_vecino) REFERENCES vecinos(dni),
-        FOREIGN KEY (mascota_id) REFERENCES mascotas(id),
-        FOREIGN KEY (veterinario_id) REFERENCES veterinarios(id)
-      )`);
+    if (table) {
+      db.all(`PRAGMA table_info(turnos)`, (err, columns) => {
+        if (err) {
+          console.error('Error al obtener info de turnos:', err.message);
+          return;
+        }
 
-      db.run(`INSERT INTO turnos_new (id, dni_vecino, mascota_id, puesto, dia, hora, estado)
-              SELECT id, dni_vecino, mascota_id, puesto, dia, hora, estado FROM turnos`, (err) => {
-        if (err) console.error('Error al copiar datos:', err.message);
-        db.run(`DROP TABLE turnos`, (err) => {
-          if (err) console.error('Error al eliminar tabla antigua:', err.message);
-          db.run(`ALTER TABLE turnos_new RENAME TO turnos`, (err) => {
-            if (err) console.error('Error al renombrar tabla:', err.message);
-            console.log('Migración completada.');
+        const hasVeterinarioId = columns.some(col => col.name === 'veterinario_id');
+        if (!hasVeterinarioId) {
+          console.log('Migrando tabla turnos para agregar veterinario_id...');
+          db.run(`CREATE TABLE turnos_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            dni_vecino TEXT,
+            mascota_id INTEGER,
+            puesto TEXT,
+            dia TEXT,
+            hora TEXT,
+            estado TEXT,
+            veterinario_id INTEGER,
+            FOREIGN KEY (dni_vecino) REFERENCES vecinos(dni),
+            FOREIGN KEY (mascota_id) REFERENCES mascotas(id),
+            FOREIGN KEY (veterinario_id) REFERENCES veterinarios(id)
+          )`, (err) => {
+            if (err) {
+              console.error('Error al crear turnos_new:', err.message);
+              return;
+            }
+            db.run(`INSERT INTO turnos_new (id, dni_vecino, mascota_id, puesto, dia, hora, estado)
+                    SELECT id, dni_vecino, mascota_id, puesto, dia, hora, estado FROM turnos`, (err) => {
+              if (err) {
+                console.error('Error al copiar datos:', err.message);
+                return;
+              }
+              db.run(`DROP TABLE turnos`, (err) => {
+                if (err) {
+                  console.error('Error al eliminar turnos:', err.message);
+                  return;
+                }
+                db.run(`ALTER TABLE turnos_new RENAME TO turnos`, (err) => {
+                  if (err) {
+                    console.error('Error al renombrar turnos_new:', err.message);
+                    return;
+                  }
+                  console.log('Migración completada.');
+                });
+              });
+            });
           });
-        });
+        }
       });
     } else {
-      db.run(`CREATE TABLE IF NOT EXISTS turnos (
+      db.run(`CREATE TABLE turnos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         dni_vecino TEXT,
         mascota_id INTEGER,
@@ -104,11 +124,12 @@ db.serialize(() => {
         FOREIGN KEY (dni_vecino) REFERENCES vecinos(dni),
         FOREIGN KEY (mascota_id) REFERENCES mascotas(id),
         FOREIGN KEY (veterinario_id) REFERENCES veterinarios(id)
-      )`);
+      )`, (err) => {
+        if (err) console.error('Error al crear turnos:', err.message);
+      });
     }
   });
 
-  // Precarga de datos
   db.get(`SELECT COUNT(*) as count FROM puestos`, (err, row) => {
     if (row.count === 0) {
       const puestos = [
@@ -276,17 +297,28 @@ app.post('/api/turnos', (req, res) => {
   if (!dni_vecino || !mascota_id || !puesto || !dia || !hora || !veterinario_id) {
     return res.status(400).json({ error: 'Faltan datos obligatorios' });
   }
-  db.get(`SELECT * FROM horarios WHERE puesto_id = (SELECT id FROM puestos WHERE nombre = ?) AND dia = ? AND hora = ? AND disponible = 1`, 
-    [puesto, dia, hora], (err, horario) => {
-      if (err) return res.status(500).json({ error: err.message });
-      if (!horario) return res.status(400).json({ error: 'Horario no disponible' });
 
-      const sql = `INSERT INTO turnos (dni_vecino, mascota_id, puesto, dia, hora, estado, veterinario_id) VALUES (?, ?, ?, ?, ?, 'Reservado', ?)`;
-      db.run(sql, [dni_vecino, mascota_id, puesto, dia, hora, veterinario_id], function (err) {
-        if (err) return res.status(400).json({ error: 'Error al reservar turno: ' + err.message });
-        db.run(`UPDATE horarios SET disponible = 0 WHERE id = ?`, [horario.id]);
-        res.json({ message: 'Turno reservado', id: this.lastID });
-      });
+  // Verificar si el veterinario ya tiene un turno en el mismo día y hora
+  db.get(`SELECT * FROM turnos WHERE veterinario_id = ? AND dia = ? AND hora = ? AND estado = 'Reservado'`, 
+    [veterinario_id, dia, hora], (err, existingTurno) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (existingTurno) {
+        return res.status(400).json({ error: 'El veterinario ya tiene un turno asignado en este día y horario' });
+      }
+
+      // Verificar disponibilidad del horario
+      db.get(`SELECT * FROM horarios WHERE puesto_id = (SELECT id FROM puestos WHERE nombre = ?) AND dia = ? AND hora = ? AND disponible = 1`, 
+        [puesto, dia, hora], (err, horario) => {
+          if (err) return res.status(500).json({ error: err.message });
+          if (!horario) return res.status(400).json({ error: 'Horario no disponible' });
+
+          const sql = `INSERT INTO turnos (dni_vecino, mascota_id, puesto, dia, hora, estado, veterinario_id) VALUES (?, ?, ?, ?, ?, 'Reservado', ?)`;
+          db.run(sql, [dni_vecino, mascota_id, puesto, dia, hora, veterinario_id], function (err) {
+            if (err) return res.status(400).json({ error: 'Error al reservar turno: ' + err.message });
+            db.run(`UPDATE horarios SET disponible = 0 WHERE id = ?`, [horario.id]);
+            res.json({ message: 'Turno reservado', id: this.lastID });
+          });
+        });
     });
 });
 
