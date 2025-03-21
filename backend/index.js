@@ -375,3 +375,25 @@ app.get('/api/turnos/vecino/:dni', (req, res) => {
       res.json(rows);
     });
   });
+
+  app.put('/api/turnos/vecino/:id/cancelar', (req, res) => {
+    const { id } = req.params;
+    const { dni } = req.body; // El frontend enviará el DNI del vecino
+  
+    // Verificar que el turno pertenece al vecino
+    db.get(`SELECT * FROM turnos WHERE id = ? AND dni_vecino = ? AND estado = 'Reservado'`, [id, dni], (err, turno) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!turno) return res.status(404).json({ error: 'Turno no encontrado o no pertenece al vecino' });
+  
+      const sql = `UPDATE turnos SET estado = 'Cancelado' WHERE id = ?`;
+      db.run(sql, [id], function (err) {
+        if (err) return res.status(400).json({ error: 'Error al cancelar turno' });
+  
+        // Liberar el horario
+        db.run(`UPDATE horarios SET disponible = 1 WHERE puesto_id = (SELECT id FROM puestos WHERE nombre = ?) AND dia = ? AND hora = ?`, 
+          [turno.puesto, turno.dia, turno.hora]);
+  
+        res.json({ message: 'Turno cancelado' });
+      });
+    });
+  });

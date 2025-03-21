@@ -99,7 +99,7 @@ function App() {
       const response = await axios.post(`${backendUrl}/api/turnos`, datos);
       alert(response.data.message);
       setHorarios(horarios.filter(h => !(h.dia === turno.dia && h.hora === turno.hora)));
-      obtenerTurnosVecino(dni); // Actualizar turnos del vecino
+      obtenerTurnosVecino(dni);
     } catch (error) {
       alert(error.response?.data?.error || 'Error al reservar turno');
     }
@@ -187,6 +187,16 @@ function App() {
       setTurnosVecino(response.data);
     } catch (error) {
       alert('Error al obtener turnos del vecino');
+    }
+  };
+
+  const cancelarTurnoVecino = async (id) => {
+    try {
+      const response = await axios.put(`${backendUrl}/api/turnos/vecino/${id}/cancelar`, { dni });
+      alert(response.data.message);
+      obtenerTurnosVecino(dni);
+    } catch (error) {
+      alert(error.response?.data?.error || 'Error al cancelar turno');
     }
   };
 
@@ -356,6 +366,7 @@ function App() {
                     <th>Día</th>
                     <th>Hora</th>
                     <th>Estado</th>
+                    <th>Acción</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -367,6 +378,11 @@ function App() {
                       <td>{t.dia}</td>
                       <td>{t.hora}</td>
                       <td>{t.estado}</td>
+                      <td>
+                        {t.estado === 'Reservado' && (
+                          <button onClick={() => cancelarTurnoVecino(t.id)}>Cancelar</button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
