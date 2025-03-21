@@ -8,16 +8,17 @@ function App() {
   const [adminLogin, setAdminLogin] = useState({ username: '', password: '' });
   const [token, setToken] = useState(null);
   const [mascota, setMascota] = useState({ nombre: '', raza: '', edad: '', peso: '' });
-  const [turno, setTurno] = useState({ mascota_id: '', puesto: '', dia: '', hora: '' });
+  const [turno, setTurno] = useState({ mascota_id: '', puesto: '', dia: '', hora: '', veterinario_id: '' });
   const [nuevoHorario, setNuevoHorario] = useState({ puesto_id: '', dia: '', hora: '' });
   const [editHorario, setEditHorario] = useState(null);
   const [mascotas, setMascotas] = useState([]);
   const [puestos, setPuestos] = useState([]);
+  const [veterinarios, setVeterinarios] = useState([]);
   const [horarios, setHorarios] = useState([]);
   const [turnos, setTurnos] = useState([]);
   const [horariosAdmin, setHorariosAdmin] = useState([]);
   const [turnosVecino, setTurnosVecino] = useState([]);
-  const [filtroTurnos, setFiltroTurnos] = useState('Todos'); // Nuevo estado para filtro
+  const [filtroTurnos, setFiltroTurnos] = useState('Todos');
   const backendUrl = 'https://zoonosis-backend.onrender.com';
 
   useEffect(() => {
@@ -26,6 +27,7 @@ function App() {
       obtenerHorariosAdmin();
     } else if (!isAdmin) {
       obtenerPuestos();
+      obtenerVeterinarios();
     }
   }, [token, isAdmin]);
 
@@ -90,6 +92,15 @@ function App() {
     }
   };
 
+  const obtenerVeterinarios = async () => {
+    try {
+      const response = await axios.get(`${backendUrl}/api/veterinarios`);
+      setVeterinarios(response.data);
+    } catch (error) {
+      alert('Error al obtener veterinarios');
+    }
+  };
+
   const obtenerHorarios = async (puesto_id) => {
     try {
       const response = await axios.get(`${backendUrl}/api/horarios/${puesto_id}`);
@@ -107,6 +118,7 @@ function App() {
       alert(response.data.message);
       setHorarios(horarios.filter(h => !(h.dia === turno.dia && h.hora === turno.hora)));
       obtenerTurnosVecino(dni);
+      setTurno({ mascota_id: '', puesto: '', dia: '', hora: '', veterinario_id: '' });
     } catch (error) {
       alert(error.response?.data?.error || 'Error al reservar turno');
     }
@@ -225,6 +237,60 @@ function App() {
     return true;
   });
 
+  const razasPerros = [
+    "Affenpinscher", "Afghan Hound", "Airedale Terrier", "Akita", "Alaskan Klee Kai", "Alaskan Malamute",
+    "American Bulldog", "American English Coonhound", "American Eskimo Dog", "American Foxhound",
+    "American Hairless Terrier", "American Leopard Hound", "American Pit Bull Terrier", "American Staffordshire Terrier",
+    "American Water Spaniel", "Anatolian Shepherd Dog", "Appenzeller Sennenhund", "Australian Cattle Dog",
+    "Australian Kelpie", "Australian Shepherd", "Australian Stumpy Tail Cattle Dog", "Australian Terrier",
+    "Azawakh", "Barbet", "Basenji", "Basset Fauve de Bretagne", "Basset Hound", "Bavarian Mountain Hound",
+    "Beagle", "Bearded Collie", "Beauceron", "Bedlington Terrier", "Belgian Laekenois", "Belgian Malinois",
+    "Belgian Sheepdog", "Belgian Tervuren", "Bergamasco Sheepdog", "Berger Picard", "Bernese Mountain Dog",
+    "Bichon Frise", "Biewer Terrier", "Black and Tan Coonhound", "Black Russian Terrier", "Bloodhound",
+    "Bluetick Coonhound", "Boerboel", "Bolognese", "Border Collie", "Border Terrier", "Borzoi",
+    "Boston Terrier", "Bouvier des Flandres", "Boxer", "Boykin Spaniel", "Bracco Italiano", "Briard",
+    "Brittany", "Broholmer", "Brussels Griffon", "Bull Terrier", "Bulldog", "Bullmastiff",
+    "Cairn Terrier", "Canaan Dog", "Cane Corso", "Cardigan Welsh Corgi", "Catahoula Leopard Dog",
+    "Caucasian Shepherd Dog", "Cavalier King Charles Spaniel", "Cesky Terrier", "Chesapeake Bay Retriever",
+    "Chihuahua", "Chinese Crested", "Chinese Shar-Pei", "Chinook", "Chow Chow", "Cirneco dell’Etna",
+    "Clumber Spaniel", "Cocker Spaniel", "Collie", "Coton de Tulear", "Curly-Coated Retriever",
+    "Czechoslovakian Vlcak", "Dachshund", "Dalmatian", "Dandie Dinmont Terrier", "Danish-Swedish Farmdog",
+    "Deutscher Wachtelhund", "Doberman Pinscher", "Dogo Argentino", "Dogue de Bordeaux", "Drentsche Patrijshond",
+    "Drever", "Dutch Shepherd", "English Cocker Spaniel", "English Foxhound", "English Setter",
+    "English Springer Spaniel", "English Toy Spaniel", "Entlebucher Mountain Dog", "Eurasier",
+    "Field Spaniel", "Finnish Lapphund", "Finnish Spitz", "Flat-Coated Retriever", "French Bulldog",
+    "French Spaniel", "German Longhaired Pointer", "German Pinscher", "German Shepherd Dog",
+    "German Shorthaired Pointer", "German Spitz", "German Wirehaired Pointer", "Giant Schnauzer",
+    "Glen of Imaal Terrier", "Golden Retriever", "Gordon Setter", "Grand Basset Griffon Vendéen",
+    "Great Dane", "Great Pyrenees", "Greater Swiss Mountain Dog", "Greyhound", "Hamiltonstovare",
+    "Hanoverian Scenthound", "Harrier", "Havanese", "Hokkaido", "Hovawart", "Ibizan Hound",
+    "Icelandic Sheepdog", "Irish Red and White Setter", "Irish Setter", "Irish Terrier",
+    "Irish Water Spaniel", "Irish Wolfhound", "Italian Greyhound", "Jagdterrier", "Japanese Chin",
+    "Japanese Spitz", "Keeshond", "Kerry Blue Terrier", "Kishu Ken", "Komondor", "Kooikerhondje",
+    "Kuvasz", "Labrador Retriever", "Lagotto Romagnolo", "Lakeland Terrier", "Lancashire Heeler",
+    "Leonberger", "Lhasa Apso", "Löwchen", "Maltese", "Manchester Terrier", "Mastiff",
+    "Miniature American Shepherd", "Miniature Bull Terrier", "Miniature Pinscher", "Miniature Schnauzer",
+    "Mudi", "Neapolitan Mastiff", "Nederlandse Kooikerhondje", "Newfoundland", "Norfolk Terrier",
+    "Norwegian Buhund", "Norwegian Elkhound", "Norwegian Lundehund", "Norwich Terrier",
+    "Nova Scotia Duck Tolling Retriever", "Old English Sheepdog", "Otterhound", "Papillon",
+    "Parson Russell Terrier", "Pekingese", "Pembroke Welsh Corgi", "Perro de Presa Canario",
+    "Peruvian Inca Orchid", "Petit Basset Griffon Vendéen", "Pharaoh Hound", "Plott Hound",
+    "Pointer", "Polish Lowland Sheepdog", "Pomeranian", "Poodle", "Porcelaine", "Portuguese Podengo",
+    "Portuguese Pointer", "Portuguese Water Dog", "Pug", "Puli", "Pumi", "Pyrenean Mastiff",
+    "Pyrenean Shepherd", "Rafeiro do Alentejo", "Rat Terrier", "Redbone Coonhound", "Rhodesian Ridgeback",
+    "Rottweiler", "Russell Terrier", "Russian Toy", "Saint Bernard", "Saluki", "Samoyed",
+    "Schapendoes", "Schipperke", "Schnauzer", "Scottish Deerhound", "Scottish Terrier", "Sealyham Terrier",
+    "Shetland Sheepdog", "Shiba Inu", "Shih Tzu", "Shikoku", "Siberian Husky", "Silky Terrier",
+    "Skye Terrier", "Sloughi", "Slovak Cuvac", "Small Munsterlander", "Soft Coated Wheaten Terrier",
+    "Spanish Mastiff", "Spanish Water Dog", "Spinone Italiano", "Staffordshire Bull Terrier",
+    "Standard Schnauzer", "Stumpy Tail Cattle Dog", "Sussex Spaniel", "Swedish Lapphund",
+    "Swedish Vallhund", "Tennessee Treeing Brindle", "Thai Ridgeback", "Tibetan Mastiff",
+    "Tibetan Spaniel", "Tibetan Terrier", "Tornjak", "Tosa", "Toy Fox Terrier", "Treeing Tennessee Brindle",
+    "Treeing Walker Coonhound", "Vizsla", "Weimaraner", "Welsh Springer Spaniel", "Welsh Terrier",
+    "West Highland White Terrier", "Whippet", "Wire Fox Terrier", "Wirehaired Pointing Griffon",
+    "Wirehaired Vizsla", "Xoloitzcuintli", "Yorkshire Terrier"
+  ];
+
   return (
     <div className="App">
       <h1>Sistema de Turnos - Zoonosis</h1>
@@ -285,9 +351,9 @@ function App() {
                 required
               >
                 <option value="">Seleccionar Raza</option>
-                <option value="Mestizo">Mestizo</option>
-                <option value="Labrador">Labrador</option>
-                <option value="Caniche">Caniche</option>
+                {razasPerros.map((raza) => (
+                  <option key={raza} value={raza}>{raza}</option>
+                ))}
               </select>
               <input
                 type="text"
@@ -365,6 +431,18 @@ function App() {
                   </option>
                 ))}
               </select>
+              <select
+                value={turno.veterinario_id}
+                onChange={(e) => setTurno({ ...turno, veterinario_id: e.target.value })}
+                required
+              >
+                <option value="">Seleccionar Veterinario</option>
+                {veterinarios.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.nombre}
+                  </option>
+                ))}
+              </select>
               <button type="submit">Reservar Turno</button>
             </form>
 
@@ -387,6 +465,7 @@ function App() {
                     <th>Puesto</th>
                     <th>Día</th>
                     <th>Hora</th>
+                    <th>Veterinario</th>
                     <th>Estado</th>
                     <th>Acción</th>
                   </tr>
@@ -399,6 +478,7 @@ function App() {
                       <td>{t.puesto}</td>
                       <td>{t.dia}</td>
                       <td>{t.hora}</td>
+                      <td>{t.veterinario_nombre}</td>
                       <td>{t.estado}</td>
                       <td>
                         {t.estado === 'Reservado' && (
@@ -432,6 +512,7 @@ function App() {
                 <th>Puesto</th>
                 <th>Día</th>
                 <th>Hora</th>
+                <th>Veterinario</th>
                 <th>Estado</th>
                 <th>Acción</th>
               </tr>
@@ -445,6 +526,7 @@ function App() {
                   <td>{t.puesto}</td>
                   <td>{t.dia}</td>
                   <td>{t.hora}</td>
+                  <td>{t.veterinario_nombre}</td>
                   <td>{t.estado}</td>
                   <td>
                     {t.estado === 'Reservado' && (
