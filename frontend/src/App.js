@@ -138,7 +138,11 @@ function App() {
       link.click();
       link.remove();
     } catch (error) {
-      alert('Error al descargar el PDF');
+      if (error.response && error.response.status === 404) {
+        alert('El turno no fue encontrado. Asegúrate de que el turno existe.');
+      } else {
+        alert('Error al descargar el PDF: ' + (error.message || 'Error desconocido'));
+      }
     }
   };
 
