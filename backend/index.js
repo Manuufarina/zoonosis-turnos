@@ -186,49 +186,100 @@ const transporter = nodemailer.createTransport({
 
 // Función para enviar recordatorios
 const enviarRecordatorios = () => {
-  const ahora = new Date();
-  const manana = new Date(ahora);
-  manana.setDate(ahora.getDate() + 1);
-  const diaManana = manana.toISOString().split('T')[0]; // Formato YYYY-MM-DD
-
-  db.all(`SELECT t.*, v.nombre AS vecino_nombre, v.email AS vecino_email, m.nombre AS mascota_nombre, vet.nombre AS veterinario_nombre 
-          FROM turnos t 
-          JOIN vecinos v ON t.dni_vecino = v.dni 
-          JOIN mascotas m ON t.mascota_id = m.id 
-          LEFT JOIN veterinarios vet ON t.veterinario_id = vet.id 
-          WHERE t.dia = ? AND t.estado = 'Reservado'`, [diaManana], (err, turnos) => {
-    if (err) {
-      console.error('Error al buscar turnos para recordatorios:', err.message);
-      return;
-    }
-
-    turnos.forEach(turno => {
-      const cancelLink = `https://zoonosis-frontend.vercel.app/cancelar-turno/${turno.id}/${turno.dni_vecino}`;
-      const mailOptions = {
-        from: process.env.EMAIL_USER,
-        to: turno.vecino_email,
-        subject: 'Recordatorio de Turno - Zoonosis San Isidro',
-        html: `
-          <div style="text-align: center;">
-            <img src="https://www.sanisidro.gob.ar/sites/default/files/Logo%20San%20Isidro%202017.png" alt="Logo Municipio San Isidro" style="width: 200px;">
-            <p>Estimado Vecino ${turno.vecino_nombre} DNI ${turno.dni_vecino},</p>
-            <p>Le recordamos su turno para castración de su mascota ${turno.mascota_nombre} mañana ${turno.dia} a las ${turno.hora} en el puesto ${turno.puesto}.</p>
-            <p>Si no puede asistir, por favor cancele su turno haciendo clic <a href="${cancelLink}">aquí</a>.</p>
-            <p>Desde ya, muchas gracias.</p>
-            <p><strong>Zoonosis San Isidro</strong></p>
-          </div>
-        `
-      };
-      transporter.sendMail(mailOptions, (error) => {
-        if (error) {
-          console.error(`Error al enviar recordatorio para turno ${turno.id}:`, error);
-        } else {
-          console.log(`Recordatorio enviado para turno ${turno.id} a ${turno.vecino_email}`);
-        }
+    const ahora = new Date();
+    const manana = new Date(ahora);
+    manana.setDate(ahora.getDate() + 1);
+    const diaManana = manana.toISOString().split('T')[0]; // Formato YYYY-MM-DD
+  
+    db.all(`SELECT t.*, v.nombre AS vecino_nombre, v.email AS vecino_email, m.nombre AS mascota_nombre, vet.nombre AS veterinario_nombre 
+            FROM turnos t 
+            JOIN vecinos v ON t.dni_vecino = v.dni 
+            JOIN mascotas m ON t.mascota_id = m.id 
+            LEFT JOIN veterinarios vet ON t.veterinario_id = vet.id 
+            WHERE t.dia = ? AND t.estado = 'Reservado'`, [diaManana], (err, turnos) => {
+      if (err) {
+        console.error('Error al buscar turnos para recordatorios:', err.message);
+        return;
+      }
+  
+      turnos.forEach(turno => {
+        const cancelLink = `https://zoonosis-frontend.vercel.app/cancelar-turno/${turno.id}/${turno.dni_vecino}`;
+        const mailOptions = {
+          from: process.env.EMAIL_USER,
+          to: turno.vecino_email,
+          subject: 'Recordatorio de Turno - Zoonosis San Isidro',
+          html: `
+            <div style="text-align: center; font-family: Arial, sans-serif; color: #333;">
+              <img src="https://www.sanisidro.gob.ar/sites/default/files/Logo%20San%20Isidro%202017.png" alt="Logo Municipio San Isidro" style="width: 200px;">
+              <h2>Recordatorio de Turno</h2>
+              <p>Estimado Vecino ${turno.vecino_nombre} DNI ${turno.dni_vecino},</p>
+              <p>Le recordamos su turno para castración de su mascota ${turno.mascota_nombre} mañana ${turno.dia} a las ${turno.hora} en el puesto ${turno.puesto}.</p>
+              <p>Si no puede asistir, por favor cancele su turno haciendo clic <a href="${cancelLink}">aquí</a>.</p>
+              <p>Desde ya, muchas gracias.</p>
+              <p><strong>Zoonosis San Isidro</strong></p>
+              <hr style="border: 1px solid #2E7D32; width: 80%; margin: 20px auto;">
+              <h3>Registro para Castración de Mascotas 2025</h3>
+              <p>La Castración de Mascotas es un servicio gratuito del Municipio a los vecinos de San Isidro, en pos de cuidar la salud de sus mascotas y mejorar sus posibilidades de convivencia.</p>
+              <p><strong>Podrás reservar turno para la castración de Mascotas a partir del 24 de cada mes.</strong></p>
+              <h4>Condiciones para poder castrar a su mascota:</h4>
+              <ul style="text-align: left; margin: 0 auto; width: 80%;">
+                <li>Los felinos se castran desde los 6 meses hasta los 7 años de edad.</li>
+                <li>Los caninos se castran desde los 6 meses hasta los 6 años de edad.</li>
+                <li><strong>Razas que NO se castran en el servicio de Zoonosis:</strong> Boxer, Buldog, Shit Tzu, Chow Chow, Yorkshire, Pug, Chihuahua, Pekinés y sus cruzas, Bichon Maltés, Boston Terrier, Sharpei.</li>
+                <li>No se castran todos los caninos que pesen menos de 3 kilos o más de 45 kilos.</li>
+              </ul>
+              <h4>El día de la castración debe concurrir con:</h4>
+              <ul style="text-align: left; margin: 0 auto; width: 80%;">
+                <li>Trozo de sábana vieja (o similar) bien lavada y planchada de 60 por 60 cm aprox. La que reemplaza el campo utilizado en la operación.</li>
+                <li>Frazada (la salida de la anestesia provoca mucho frío).</li>
+              </ul>
+              <h4>El animal deberá guardar antes de ser operado:</h4>
+              <ul style="text-align: left; margin: 0 auto; width: 80%;">
+                <li>12 horas de ayuno sólido y 6 horas de ayuno líquido.</li>
+                <li>NO suministrarle ningún medicamento antes de la cirugía.</li>
+              </ul>
+              <h4>Evite riesgos, cumpla con estas indicaciones estrictamente:</h4>
+              <ul style="text-align: left; margin: 0 auto; width: 80%;">
+                <li>Los caninos deberán concurrir con correa, collar y si es agresivo con bozal.</li>
+                <li>Los felinos deberán ser transportados en canastos debidamente cerrados “JAMÁS SUELTOS”.</li>
+                <li>Si su animal tuvo cría recientemente, deberán transcurrir un mínimo de 60 días para poder ser operada.</li>
+                <li>Se requiere que el animal se encuentre clínicamente sano y en buen estado de higiene.</li>
+                <li>Las hembras caninas presentan dos celos por año, uno cada seis meses, el momento adecuado para esterilizarlo es durante el prolongado periodo en que no están en celo.</li>
+              </ul>
+              <p>En todos los casos el vecino debe:</p>
+              <ul style="text-align: left; margin: 0 auto; width: 80%;">
+                <li>Tener Documento Nacional de Identidad (DNI) con domicilio en el partido de San Isidro.</li>
+                <li>Poseer la Tarjeta Ciudadana SI y que la misma esté ACTIVA. (Encontrará la información en la web <a href="http://www.sanisidro.gob.ar">www.sanisidro.gob.ar</a>)</li>
+                <li>Asistir el ciudadano que se registró con la mascota.</li>
+              </ul>
+              <p>En caso de no poseer Tarjeta Ciudadana o tenerla desactivada podrá solucionar su problema de alguna de las siguientes formas:</p>
+              <ul style="text-align: left; margin: 0 auto; width: 80%;">
+                <li>Ingresando a: <a href="http://www.tarjetasanisidro.gob.ar">http://www.tarjetasanisidro.gob.ar</a> (para el caso de sacar una tarjeta nueva o encontrarse vencida).</li>
+                <li>Llamando a 4512-3567 de 8:30 a 14 hs. de Lunes a Viernes.</li>
+                <li>Enviando mail a <a href="mailto:ciudadano@sanisidro.gob.ar">ciudadano@sanisidro.gob.ar</a>.</li>
+              </ul>
+              <h4>Los pasos a seguir para inscribirse son:</h4>
+              <ol style="text-align: left; margin: 0 auto; width: 80%;">
+                <li>“Reserve la vacante” colocando sus datos personales.</li>
+                <li>Cargue y Seleccione su mascota (Gato o Perro).</li>
+                <li>Tenga en cuenta seleccionar turno en el CENTRO más cercano a su domicilio, para ello recorra la lista completa y elija la mejor opción.</li>
+                <li>Recibirá un mail de confirmación y un PDF con los datos de su turno.</li>
+                <li>Presentarse personalmente en el CENTRO seleccionado y a la hora elegida a fin de ser atendido.</li>
+              </ol>
+              <p><strong>IMPORTANTE: ANTE CUALQUIER DUDA LLAMAR DE LUNES A VIERNES DE 8 A 14 AL 4512-3151/3495</strong></p>
+            </div>
+          `
+        };
+        transporter.sendMail(mailOptions, (error) => {
+          if (error) {
+            console.error(`Error al enviar recordatorio para turno ${turno.id}:`, error);
+          } else {
+            console.log(`Recordatorio enviado para turno ${turno.id} a ${turno.vecino_email}`);
+          }
+        });
       });
     });
-  });
-};
+  };
 
 // Programar el envío de recordatorios todos los días a las 8:00 AM
 cron.schedule('0 8 * * *', () => {
@@ -379,72 +430,123 @@ app.delete('/api/horarios/:id', (req, res) => {
 });
 
 app.post('/api/turnos', (req, res) => {
-  const { dni_vecino, mascota_id, puesto, dia, hora, veterinario_id } = req.body;
-  if (!dni_vecino || !mascota_id || !puesto || !dia || !hora || !veterinario_id) {
-    return res.status(400).json({ error: 'Faltan datos obligatorios' });
-  }
-
-  db.get(`SELECT * FROM turnos WHERE veterinario_id = ? AND dia = ? AND hora = ? AND estado = 'Reservado'`, 
-    [veterinario_id, dia, hora], (err, existingTurno) => {
-      if (err) return res.status(500).json({ error: err.message });
-      if (existingTurno) {
-        return res.status(400).json({ error: 'El veterinario ya tiene un turno asignado en este día y horario' });
-      }
-
-      db.get(`SELECT * FROM horarios WHERE puesto_id = (SELECT id FROM puestos WHERE nombre = ?) AND dia = ? AND hora = ? AND disponible = 1`, 
-        [puesto, dia, hora], (err, horario) => {
-          if (err) return res.status(500).json({ error: err.message });
-          if (!horario) return res.status(400).json({ error: 'Horario no disponible' });
-
-          const sql = `INSERT INTO turnos (dni_vecino, mascota_id, puesto, dia, hora, estado, veterinario_id) VALUES (?, ?, ?, ?, ?, 'Reservado', ?)`;
-          db.run(sql, [dni_vecino, mascota_id, puesto, dia, hora, veterinario_id], function (err) {
-            if (err) return res.status(400).json({ error: 'Error al reservar turno: ' + err.message });
-
-            db.run(`UPDATE horarios SET disponible = 0 WHERE id = ?`, [horario.id], (err) => {
-              if (err) console.error('Error al actualizar horario:', err.message);
-            });
-
-            db.get(`SELECT nombre, email FROM vecinos WHERE dni = ?`, [dni_vecino], (err, vecino) => {
-              if (err) {
-                console.error('Error al obtener vecino:', err.message);
-                return res.status(500).json({ error: 'Error al procesar el turno' });
-              }
-              if (!vecino || !vecino.email) {
-                console.error('No se encontró email para el vecino con DNI:', dni_vecino);
-                return res.json({ message: 'Turno reservado, pero no se pudo enviar el email', id: this.lastID });
-              }
-
-              db.get(`SELECT nombre FROM mascotas WHERE id = ?`, [mascota_id], (err, mascota) => {
+    const { dni_vecino, mascota_id, puesto, dia, hora, veterinario_id } = req.body;
+    if (!dni_vecino || !mascota_id || !puesto || !dia || !hora || !veterinario_id) {
+      return res.status(400).json({ error: 'Faltan datos obligatorios' });
+    }
+  
+    db.get(`SELECT * FROM turnos WHERE veterinario_id = ? AND dia = ? AND hora = ? AND estado = 'Reservado'`, 
+      [veterinario_id, dia, hora], (err, existingTurno) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (existingTurno) {
+          return res.status(400).json({ error: 'El veterinario ya tiene un turno asignado en este día y horario' });
+        }
+  
+        db.get(`SELECT * FROM horarios WHERE puesto_id = (SELECT id FROM puestos WHERE nombre = ?) AND dia = ? AND hora = ? AND disponible = 1`, 
+          [puesto, dia, hora], (err, horario) => {
+            if (err) return res.status(500).json({ error: err.message });
+            if (!horario) return res.status(400).json({ error: 'Horario no disponible' });
+  
+            const sql = `INSERT INTO turnos (dni_vecino, mascota_id, puesto, dia, hora, estado, veterinario_id) VALUES (?, ?, ?, ?, ?, 'Reservado', ?)`;
+            db.run(sql, [dni_vecino, mascota_id, puesto, dia, hora, veterinario_id], function (err) {
+              if (err) return res.status(400).json({ error: 'Error al reservar turno: ' + err.message });
+  
+              db.run(`UPDATE horarios SET disponible = 0 WHERE id = ?`, [horario.id], (err) => {
+                if (err) console.error('Error al actualizar horario:', err.message);
+              });
+  
+              db.get(`SELECT nombre, email FROM vecinos WHERE dni = ?`, [dni_vecino], (err, vecino) => {
                 if (err) {
-                  console.error('Error al obtener mascota:', err.message);
+                  console.error('Error al obtener vecino:', err.message);
                   return res.status(500).json({ error: 'Error al procesar el turno' });
                 }
-
-                const mailOptions = {
-                  from: process.env.EMAIL_USER,
-                  to: vecino.email,
-                  subject: 'Confirmación de Turno - Zoonosis San Isidro',
-                  html: `
-                    <div style="text-align: center;">
-                      <img src="https://www.sanisidro.gob.ar/sites/default/files/Logo%20San%20Isidro%202017.png" alt="Logo Municipio San Isidro" style="width: 200px;">
-                      <p>Estimado Vecino ${vecino.nombre || ''} DNI ${dni_vecino},</p>
-                      <p>Le confirmamos su turno para castración de su mascota ${mascota?.nombre || ''} para el día ${dia} a las ${hora} en el puesto ${puesto}.</p>
-                      <p>Le pedimos que, de no poder asistir, ingrese al sistema y cancele su turno para habilitárselo a otro vecino.</p>
-                      <p>Desde ya, muchas gracias.</p>
-                      <p><strong>Zoonosis San Isidro</strong></p>
-                    </div>
-                  `
-                };
-                transporter.sendMail(mailOptions, (error) => {
-                  if (error) console.error('Error al enviar email:', error);
+                if (!vecino || !vecino.email) {
+                  console.error('No se encontró email para el vecino con DNI:', dni_vecino);
+                  return res.json({ message: 'Turno reservado, pero no se pudo enviar el email', id: this.lastID });
+                }
+  
+                db.get(`SELECT nombre FROM mascotas WHERE id = ?`, [mascota_id], (err, mascota) => {
+                  if (err) {
+                    console.error('Error al obtener mascota:', err.message);
+                    return res.status(500).json({ error: 'Error al procesar el turno' });
+                  }
+  
+                  const mailOptions = {
+                    from: process.env.EMAIL_USER,
+                    to: vecino.email,
+                    subject: 'Confirmación de Turno - Zoonosis San Isidro',
+                    html: `
+                      <div style="text-align: center; font-family: Arial, sans-serif; color: #333;">
+                        <img src="https://www.sanisidro.gob.ar/sites/default/files/Logo%20San%20Isidro%202017.png" alt="Logo Municipio San Isidro" style="width: 200px;">
+                        <h2>Confirmación de Turno</h2>
+                        <p>Estimado Vecino ${vecino.nombre || ''} DNI ${dni_vecino},</p>
+                        <p>Le confirmamos su turno para castración de su mascota ${mascota?.nombre || ''} para el día ${dia} a las ${hora} en el puesto ${puesto}.</p>
+                        <p>Le pedimos que, de no poder asistir, ingrese al sistema y cancele su turno para habilitárselo a otro vecino.</p>
+                        <p>Desde ya, muchas gracias.</p>
+                        <p><strong>Zoonosis San Isidro</strong></p>
+                        <hr style="border: 1px solid #2E7D32; width: 80%; margin: 20px auto;">
+                        <h3>Registro para Castración de Mascotas 2025</h3>
+                        <p>La Castración de Mascotas es un servicio gratuito del Municipio a los vecinos de San Isidro, en pos de cuidar la salud de sus mascotas y mejorar sus posibilidades de convivencia.</p>
+                        <p><strong>Podrás reservar turno para la castración de Mascotas a partir del 24 de cada mes.</strong></p>
+                        <h4>Condiciones para poder castrar a su mascota:</h4>
+                        <ul style="text-align: left; margin: 0 auto; width: 80%;">
+                          <li>Los felinos se castran desde los 6 meses hasta los 7 años de edad.</li>
+                          <li>Los caninos se castran desde los 6 meses hasta los 6 años de edad.</li>
+                          <li><strong>Razas que NO se castran en el servicio de Zoonosis:</strong> Boxer, Buldog, Shit Tzu, Chow Chow, Yorkshire, Pug, Chihuahua, Pekinés y sus cruzas, Bichon Maltés, Boston Terrier, Sharpei.</li>
+                          <li>No se castran todos los caninos que pesen menos de 3 kilos o más de 45 kilos.</li>
+                        </ul>
+                        <h4>El día de la castración debe concurrir con:</h4>
+                        <ul style="text-align: left; margin: 0 auto; width: 80%;">
+                          <li>Trozo de sábana vieja (o similar) bien lavada y planchada de 60 por 60 cm aprox. La que reemplaza el campo utilizado en la operación.</li>
+                          <li>Frazada (la salida de la anestesia provoca mucho frío).</li>
+                        </ul>
+                        <h4>El animal deberá guardar antes de ser operado:</h4>
+                        <ul style="text-align: left; margin: 0 auto; width: 80%;">
+                          <li>12 horas de ayuno sólido y 6 horas de ayuno líquido.</li>
+                          <li>NO suministrarle ningún medicamento antes de la cirugía.</li>
+                        </ul>
+                        <h4>Evite riesgos, cumpla con estas indicaciones estrictamente:</h4>
+                        <ul style="text-align: left; margin: 0 auto; width: 80%;">
+                          <li>Los caninos deberán concurrir con correa, collar y si es agresivo con bozal.</li>
+                          <li>Los felinos deberán ser transportados en canastos debidamente cerrados “JAMÁS SUELTOS”.</li>
+                          <li>Si su animal tuvo cría recientemente, deberán transcurrir un mínimo de 60 días para poder ser operada.</li>
+                          <li>Se requiere que el animal se encuentre clínicamente sano y en buen estado de higiene.</li>
+                          <li>Las hembras caninas presentan dos celos por año, uno cada seis meses, el momento adecuado para esterilizarlo es durante el prolongado periodo en que no están en celo.</li>
+                        </ul>
+                        <p>En todos los casos el vecino debe:</p>
+                        <ul style="text-align: left; margin: 0 auto; width: 80%;">
+                          <li>Tener Documento Nacional de Identidad (DNI) con domicilio en el partido de San Isidro.</li>
+                          <li>Poseer la Tarjeta Ciudadana SI y que la misma esté ACTIVA. (Encontrará la información en la web <a href="http://www.sanisidro.gob.ar">www.sanisidro.gob.ar</a>)</li>
+                          <li>Asistir el ciudadano que se registró con la mascota.</li>
+                        </ul>
+                        <p>En caso de no poseer Tarjeta Ciudadana o tenerla desactivada podrá solucionar su problema de alguna de las siguientes formas:</p>
+                        <ul style="text-align: left; margin: 0 auto; width: 80%;">
+                          <li>Ingresando a: <a href="http://www.tarjetasanisidro.gob.ar">http://www.tarjetasanisidro.gob.ar</a> (para el caso de sacar una tarjeta nueva o encontrarse vencida).</li>
+                          <li>Llamando a 4512-3567 de 8:30 a 14 hs. de Lunes a Viernes.</li>
+                          <li>Enviando mail a <a href="mailto:ciudadano@sanisidro.gob.ar">ciudadano@sanisidro.gob.ar</a>.</li>
+                        </ul>
+                        <h4>Los pasos a seguir para inscribirse son:</h4>
+                        <ol style="text-align: left; margin: 0 auto; width: 80%;">
+                          <li>“Reserve la vacante” colocando sus datos personales.</li>
+                          <li>Cargue y Seleccione su mascota (Gato o Perro).</li>
+                          <li>Tenga en cuenta seleccionar turno en el CENTRO más cercano a su domicilio, para ello recorra la lista completa y elija la mejor opción.</li>
+                          <li>Recibirá un mail de confirmación y un PDF con los datos de su turno.</li>
+                          <li>Presentarse personalmente en el CENTRO seleccionado y a la hora elegida a fin de ser atendido.</li>
+                        </ol>
+                        <p><strong>IMPORTANTE: ANTE CUALQUIER DUDA LLAMAR DE LUNES A VIERNES DE 8 A 14 AL 4512-3151/3495</strong></p>
+                      </div>
+                    `
+                  };
+                  transporter.sendMail(mailOptions, (error) => {
+                    if (error) console.error('Error al enviar email:', error);
+                  });
+                  res.json({ message: 'Turno reservado', id: this.lastID });
                 });
-                res.json({ message: 'Turno reservado', id: this.lastID });
               });
             });
           });
-        });
-    });
-});
+      });
+  });
 
 app.get('/api/turnos/pdf/:id', async (req, res) => {
     const { id } = req.params;
