@@ -146,3 +146,7 @@ th {
 .cancelar-btn:hover {
   background-color: #cc0000;
 }
+
+.turnos-table td button {
+  margin-right: 10px;
+}

@@ -501,24 +501,23 @@ app.get('/api/turnos/vecino/:dni', (req, res) => {
   });
 });
 
-app.put('/api/turnos/:id/cancelar', (req, res) => {
-  const token = req.headers.authorization;
-  if (!token || jwt.verify(token, process.env.JWT_SECRET).role !== 'admin') {
-    return res.status(403).json({ error: 'Acceso denegado' });
-  }
-  const { id } = req.params;
-  db.get(`SELECT * FROM turnos WHERE id = ? AND estado = 'Reservado'`, [id], (err, turno) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (!turno) return res.status(404).json({ error: 'Turno no encontrado o no reservado' });
-
-    db.run(`UPDATE turnos SET estado = 'Cancelado' WHERE id = ?`, [id], function (err) {
-      if (err) return res.status(400).json({ error: 'Error al cancelar turno' });
-      db.run(`UPDATE horarios SET disponible = 1 WHERE puesto_id = (SELECT id FROM puestos WHERE nombre = ?) AND dia = ? AND hora = ?`, 
-        [turno.puesto, turno.dia, turno.hora]);
-      res.json({ message: 'Turno cancelado' });
+app.put('/api/turnos/vecino/:id/cancelar', (req, res) => {
+    const { id } = req.params;
+    const { dni } = req.body;
+    console.log(`Solicitud para cancelar turno con ID ${id} por vecino con DNI ${dni}`);
+  
+    db.get(`SELECT * FROM turnos WHERE id = ? AND dni_vecino = ? AND estado = 'Reservado'`, [id, dni], (err, turno) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!turno) return res.status(404).json({ error: 'Turno no encontrado o no pertenece al vecino' });
+  
+      db.run(`UPDATE turnos SET estado = 'Cancelado' WHERE id = ?`, [id], function (err) {
+        if (err) return res.status(400).json({ error: 'Error al cancelar turno' });
+        db.run(`UPDATE horarios SET disponible = 1 WHERE puesto_id = (SELECT id FROM puestos WHERE nombre = ?) AND dia = ? AND hora = ?`, 
+          [turno.puesto, turno.dia, turno.hora]);
+        res.json({ message: 'Turno cancelado' });
+      });
     });
   });
-});
 
 app.put('/api/turnos/vecino/:id/cancelar', (req, res) => {
   const { id } = req.params;
