@@ -1,8 +1,77 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './App.css';
 
-function App() {
+function CancelarTurnoPage() {
+  const { id, dni } = useParams();
+  const navigate = useNavigate();
+  const [turno, setTurno] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const backendUrl = 'https://zoonosis-backend.onrender.com';
+
+  useEffect(() => {
+    const fetchTurno = async () => {
+      try {
+        const response = await axios.get(`${backendUrl}/api/turnos/vecino/${dni}`);
+        const turnoEncontrado = response.data.find(t => t.id === parseInt(id));
+        if (!turnoEncontrado) {
+          setError('Turno no encontrado o no pertenece al vecino.');
+        } else {
+          setTurno(turnoEncontrado);
+        }
+      } catch (err) {
+        setError('Error al obtener el turno: ' + (err.response?.data?.error || err.message));
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTurno();
+  }, [id, dni]);
+
+  const cancelarTurno = async () => {
+    if (!window.confirm('¿Estás seguro de que deseas cancelar este turno?')) return;
+    try {
+      await axios.put(`${backendUrl}/api/turnos/vecino/${id}/cancelar`, { dni });
+      alert('Turno cancelado exitosamente.');
+      navigate('/');
+    } catch (err) {
+      alert('Error al cancelar el turno: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  if (loading) return <p>Cargando...</p>;
+  if (error) return <p>{error}</p>;
+
+  return (
+    <div className="App">
+      <h1>Cancelar Turno - Zoonosis San Isidro</h1>
+      <div style={{ textAlign: 'center', margin: '20px' }}>
+        <img src="https://www.sanisidro.gob.ar/sites/default/files/Logo%20San%20Isidro%202017.png" alt="Logo Municipio San Isidro" style={{ width: '200px' }} />
+        <h2>Confirmación de Cancelación</h2>
+        <p>Estás a punto de cancelar el siguiente turno:</p>
+        <p><strong>ID del Turno:</strong> {turno.id}</p>
+        <p><strong>Mascota:</strong> {turno.mascota_nombre}</p>
+        <p><strong>Puesto:</strong> {turno.puesto}</p>
+        <p><strong>Día:</strong> {turno.dia}</p>
+        <p><strong>Hora:</strong> {turno.hora}</p>
+        <p><strong>Veterinario:</strong> {turno.veterinario_nombre}</p>
+        <p><strong>Estado:</strong> {turno.estado}</p>
+        {turno.estado === 'Reservado' ? (
+          <div>
+            <button onClick={cancelarTurno} style={{ marginRight: '10px' }}>Confirmar Cancelación</button>
+            <button onClick={() => navigate('/')}>Volver al Inicio</button>
+          </div>
+        ) : (
+          <p>Este turno ya no puede ser cancelado.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MainApp() {
   const [dni, setDni] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminLogin, setAdminLogin] = useState({ username: '', password: '' });
@@ -246,6 +315,7 @@ function App() {
   };
 
   const cancelarTurnoVecino = async (id) => {
+    if (!window.confirm('¿Estás seguro de que deseas cancelar este turno?')) return;
     try {
       const response = await axios.put(`${backendUrl}/api/turnos/vecino/${id}/cancelar`, { dni });
       alert(response.data.message);
@@ -274,7 +344,7 @@ function App() {
   });
 
   const razasPerros = [
-    "Affenpinscher", "Afghan Hound", "Airedale Terrier", "Akita", "Alaskan Klee Kai", "Alaskan Malamute",
+    "GATO", "Affenpinscher", "Afghan Hound", "Airedale Terrier", "Akita", "Alaskan Klee Kai", "Alaskan Malamute",
     "American Bulldog", "American English Coonhound", "American Eskimo Dog", "American Foxhound",
     "American Hairless Terrier", "American Leopard Hound", "American Pit Bull Terrier", "American Staffordshire Terrier",
     "American Water Spaniel", "Anatolian Shepherd Dog", "Appenzeller Sennenhund", "Australian Cattle Dog",
@@ -463,7 +533,7 @@ function App() {
                 <option value="">Seleccionar Horario</option>
                 {horarios.map((h) => (
                   <option key={h.id} value={`${h.dia} ${h.hora}`}>
-                    {h.dia} {h.hora}
+                    {h.dia} ${h.hora}
                   </option>
                 ))}
               </select>
@@ -738,6 +808,17 @@ function App() {
         </div>
       )}
     </div>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<MainApp />} />
+        <Route path="/cancelar-turno/:id/:dni" element={<CancelarTurnoPage />} />
+      </Routes>
+    </Router>
   );
 }
 
