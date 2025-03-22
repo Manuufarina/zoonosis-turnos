@@ -5,6 +5,7 @@ const nodemailer = require('nodemailer');
 const cors = require('cors');
 const PDFDocument = require('pdfkit');
 const fetch = require('node-fetch');
+const cron = require('node-cron');
 require('dotenv').config();
 
 const app = express();
@@ -181,6 +182,58 @@ db.serialize(() => {
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+});
+
+// Función para enviar recordatorios
+const enviarRecordatorios = () => {
+  const ahora = new Date();
+  const manana = new Date(ahora);
+  manana.setDate(ahora.getDate() + 1);
+  const diaManana = manana.toISOString().split('T')[0]; // Formato YYYY-MM-DD
+
+  db.all(`SELECT t.*, v.nombre AS vecino_nombre, v.email AS vecino_email, m.nombre AS mascota_nombre, vet.nombre AS veterinario_nombre 
+          FROM turnos t 
+          JOIN vecinos v ON t.dni_vecino = v.dni 
+          JOIN mascotas m ON t.mascota_id = m.id 
+          LEFT JOIN veterinarios vet ON t.veterinario_id = vet.id 
+          WHERE t.dia = ? AND t.estado = 'Reservado'`, [diaManana], (err, turnos) => {
+    if (err) {
+      console.error('Error al buscar turnos para recordatorios:', err.message);
+      return;
+    }
+
+    turnos.forEach(turno => {
+      const cancelLink = `https://zoonosis-frontend.vercel.app/cancelar-turno/${turno.id}/${turno.dni_vecino}`;
+      const mailOptions = {
+        from: process.env.EMAIL_USER,
+        to: turno.vecino_email,
+        subject: 'Recordatorio de Turno - Zoonosis San Isidro',
+        html: `
+          <div style="text-align: center;">
+            <img src="https://www.sanisidro.gob.ar/sites/default/files/Logo%20San%20Isidro%202017.png" alt="Logo Municipio San Isidro" style="width: 200px;">
+            <p>Estimado Vecino ${turno.vecino_nombre} DNI ${turno.dni_vecino},</p>
+            <p>Le recordamos su turno para castración de su mascota ${turno.mascota_nombre} mañana ${turno.dia} a las ${turno.hora} en el puesto ${turno.puesto}.</p>
+            <p>Si no puede asistir, por favor cancele su turno haciendo clic <a href="${cancelLink}">aquí</a>.</p>
+            <p>Desde ya, muchas gracias.</p>
+            <p><strong>Zoonosis San Isidro</strong></p>
+          </div>
+        `
+      };
+      transporter.sendMail(mailOptions, (error) => {
+        if (error) {
+          console.error(`Error al enviar recordatorio para turno ${turno.id}:`, error);
+        } else {
+          console.log(`Recordatorio enviado para turno ${turno.id} a ${turno.vecino_email}`);
+        }
+      });
+    });
+  });
+};
+
+// Programar el envío de recordatorios todos los días a las 8:00 AM
+cron.schedule('0 8 * * *', () => {
+  console.log('Ejecutando tarea de recordatorios...');
+  enviarRecordatorios();
 });
 
 app.post('/api/vecinos', (req, res) => {
@@ -394,84 +447,77 @@ app.post('/api/turnos', (req, res) => {
 });
 
 app.get('/api/turnos/pdf/:id', async (req, res) => {
-    const { id } = req.params;
-    console.log(`Solicitud para generar PDF del turno con ID: ${id}`);
-  
-    db.get(`SELECT t.*, v.nombre AS vecino_nombre, v.dni AS vecino_dni, v.telefono AS vecino_telefono, v.email AS vecino_email, v.direccion AS vecino_direccion, 
-                   m.nombre AS mascota_nombre, m.raza AS mascota_raza, m.edad AS mascota_edad, m.peso AS mascota_peso, 
-                   vet.nombre AS veterinario_nombre 
-            FROM turnos t 
-            JOIN vecinos v ON t.dni_vecino = v.dni 
-            JOIN mascotas m ON t.mascota_id = m.id 
-            LEFT JOIN veterinarios vet ON t.veterinario_id = vet.id 
-            WHERE t.id = ?`, [id], async (err, turno) => {
-      if (err) {
-        console.error('Error al buscar turno:', err.message);
-        return res.status(500).json({ error: err.message });
-      }
-      if (!turno) {
-        console.log(`Turno con ID ${id} no encontrado`);
-        return res.status(404).json({ error: 'Turno no encontrado' });
-      }
-  
-      console.log('Turno encontrado:', turno);
-  
-      // Crear el documento PDF
-      const doc = new PDFDocument({ size: 'A4', margin: 50 });
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename=turno_${id}.pdf`);
-      doc.pipe(res);
-  
-      // Descargar el logo
-      const logoUrl = 'https://www.sanisidro.gob.ar/sites/default/files/Logo%20San%20Isidro%202017.png';
-      try {
-        const response = await fetch(logoUrl);
-        if (!response.ok) throw new Error('Error al descargar el logo');
-        const logoBuffer = await response.buffer();
-        doc.image(logoBuffer, 50, 30, { width: 200 });
-      } catch (error) {
-        console.error('Error al descargar el logo:', error.message);
-        doc.text('No se pudo cargar el logo.', 50, 30);
-      }
-  
-      // Título
-      doc.moveDown(8);
-      doc.fontSize(20).text('Reserva de turno de castración', { align: 'center' });
-  
-      // Datos del turno
-      doc.moveDown(2);
-      doc.fontSize(14).text('Datos del Turno', { underline: true });
-      doc.moveDown(0.5);
-      doc.fontSize(12).text(`ID del Turno: ${turno.id}`);
-      doc.text(`Puesto: ${turno.puesto}`);
-      doc.text(`Día: ${turno.dia}`);
-      doc.text(`Hora: ${turno.hora}`);
-      doc.text(`Veterinario: ${turno.veterinario_nombre || 'No asignado'}`);
-      doc.text(`Estado: ${turno.estado}`);
-  
-      // Datos del vecino
-      doc.moveDown(1);
-      doc.fontSize(14).text('Datos del Vecino', { underline: true });
-      doc.moveDown(0.5);
-      doc.fontSize(12).text(`Nombre: ${turno.vecino_nombre}`);
-      doc.text(`DNI: ${turno.vecino_dni}`);
-      doc.text(`Teléfono: ${turno.vecino_telefono}`);
-      doc.text(`Email: ${turno.vecino_email}`);
-      doc.text(`Dirección: ${turno.vecino_direccion}`);
-  
-      // Datos de la mascota
-      doc.moveDown(1);
-      doc.fontSize(14).text('Datos de la Mascota', { underline: true });
-      doc.moveDown(0.5);
-      doc.fontSize(12).text(`Nombre: ${turno.mascota_nombre}`);
-      doc.text(`Raza: ${turno.mascota_raza}`);
-      doc.text(`Edad: ${turno.mascota_edad}`);
-      doc.text(`Peso: ${turno.mascota_peso} kg`);
-  
-      // Finalizar el PDF
-      doc.end();
-    });
+  const { id } = req.params;
+  console.log(`Solicitud para generar PDF del turno con ID: ${id}`);
+
+  db.get(`SELECT t.*, v.nombre AS vecino_nombre, v.dni AS vecino_dni, v.telefono AS vecino_telefono, v.email AS vecino_email, v.direccion AS vecino_direccion, 
+                 m.nombre AS mascota_nombre, m.raza AS mascota_raza, m.edad AS mascota_edad, m.peso AS mascota_peso, 
+                 vet.nombre AS veterinario_nombre 
+          FROM turnos t 
+          JOIN vecinos v ON t.dni_vecino = v.dni 
+          JOIN mascotas m ON t.mascota_id = m.id 
+          LEFT JOIN veterinarios vet ON t.veterinario_id = vet.id 
+          WHERE t.id = ?`, [id], async (err, turno) => {
+    if (err) {
+      console.error('Error al buscar turno:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    if (!turno) {
+      console.log(`Turno con ID ${id} no encontrado`);
+      return res.status(404).json({ error: 'Turno no encontrado' });
+    }
+
+    console.log('Turno encontrado:', turno);
+
+    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=turno_${id}.pdf`);
+    doc.pipe(res);
+
+    const logoUrl = 'https://www.sanisidro.gob.ar/sites/default/files/Logo%20San%20Isidro%202017.png';
+    try {
+      const response = await fetch(logoUrl);
+      if (!response.ok) throw new Error('Error al descargar el logo');
+      const logoBuffer = await response.buffer();
+      doc.image(logoBuffer, 50, 30, { width: 200 });
+    } catch (error) {
+      console.error('Error al descargar el logo:', error.message);
+      doc.text('No se pudo cargar el logo.', 50, 30);
+    }
+
+    doc.moveDown(8);
+    doc.fontSize(20).text('Reserva de turno de castración', { align: 'center' });
+
+    doc.moveDown(2);
+    doc.fontSize(14).text('Datos del Turno', { underline: true });
+    doc.moveDown(0.5);
+    doc.fontSize(12).text(`ID del Turno: ${turno.id}`);
+    doc.text(`Puesto: ${turno.puesto}`);
+    doc.text(`Día: ${turno.dia}`);
+    doc.text(`Hora: ${turno.hora}`);
+    doc.text(`Veterinario: ${turno.veterinario_nombre || 'No asignado'}`);
+    doc.text(`Estado: ${turno.estado}`);
+
+    doc.moveDown(1);
+    doc.fontSize(14).text('Datos del Vecino', { underline: true });
+    doc.moveDown(0.5);
+    doc.fontSize(12).text(`Nombre: ${turno.vecino_nombre}`);
+    doc.text(`DNI: ${turno.vecino_dni}`);
+    doc.text(`Teléfono: ${turno.vecino_telefono}`);
+    doc.text(`Email: ${turno.vecino_email}`);
+    doc.text(`Dirección: ${turno.vecino_direccion}`);
+
+    doc.moveDown(1);
+    doc.fontSize(14).text('Datos de la Mascota', { underline: true });
+    doc.moveDown(0.5);
+    doc.fontSize(12).text(`Nombre: ${turno.mascota_nombre}`);
+    doc.text(`Raza: ${turno.mascota_raza}`);
+    doc.text(`Edad: ${turno.mascota_edad}`);
+    doc.text(`Peso: ${turno.mascota_peso} kg`);
+
+    doc.end();
   });
+});
 
 app.get('/api/turnos', (req, res) => {
   const token = req.headers.authorization;
@@ -501,27 +547,30 @@ app.get('/api/turnos/vecino/:dni', (req, res) => {
   });
 });
 
-app.put('/api/turnos/vecino/:id/cancelar', (req, res) => {
-    const { id } = req.params;
-    const { dni } = req.body;
-    console.log(`Solicitud para cancelar turno con ID ${id} por vecino con DNI ${dni}`);
-  
-    db.get(`SELECT * FROM turnos WHERE id = ? AND dni_vecino = ? AND estado = 'Reservado'`, [id, dni], (err, turno) => {
-      if (err) return res.status(500).json({ error: err.message });
-      if (!turno) return res.status(404).json({ error: 'Turno no encontrado o no pertenece al vecino' });
-  
-      db.run(`UPDATE turnos SET estado = 'Cancelado' WHERE id = ?`, [id], function (err) {
-        if (err) return res.status(400).json({ error: 'Error al cancelar turno' });
-        db.run(`UPDATE horarios SET disponible = 1 WHERE puesto_id = (SELECT id FROM puestos WHERE nombre = ?) AND dia = ? AND hora = ?`, 
-          [turno.puesto, turno.dia, turno.hora]);
-        res.json({ message: 'Turno cancelado' });
-      });
+app.put('/api/turnos/:id/cancelar', (req, res) => {
+  const token = req.headers.authorization;
+  if (!token || jwt.verify(token, process.env.JWT_SECRET).role !== 'admin') {
+    return res.status(403).json({ error: 'Acceso denegado' });
+  }
+  const { id } = req.params;
+  db.get(`SELECT * FROM turnos WHERE id = ? AND estado = 'Reservado'`, [id], (err, turno) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!turno) return res.status(404).json({ error: 'Turno no encontrado o no reservado' });
+
+    db.run(`UPDATE turnos SET estado = 'Cancelado' WHERE id = ?`, [id], function (err) {
+      if (err) return res.status(400).json({ error: 'Error al cancelar turno' });
+      db.run(`UPDATE horarios SET disponible = 1 WHERE puesto_id = (SELECT id FROM puestos WHERE nombre = ?) AND dia = ? AND hora = ?`, 
+        [turno.puesto, turno.dia, turno.hora]);
+      res.json({ message: 'Turno cancelado' });
     });
   });
+});
 
 app.put('/api/turnos/vecino/:id/cancelar', (req, res) => {
   const { id } = req.params;
   const { dni } = req.body;
+  console.log(`Solicitud para cancelar turno con ID ${id} por vecino con DNI ${dni}`);
+
   db.get(`SELECT * FROM turnos WHERE id = ? AND dni_vecino = ? AND estado = 'Reservado'`, [id, dni], (err, turno) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!turno) return res.status(404).json({ error: 'Turno no encontrado o no pertenece al vecino' });
