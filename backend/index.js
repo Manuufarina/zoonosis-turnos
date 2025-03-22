@@ -394,72 +394,84 @@ app.post('/api/turnos', (req, res) => {
 });
 
 app.get('/api/turnos/pdf/:id', async (req, res) => {
-  const { id } = req.params;
-
-  // Obtener datos del turno, vecino y mascota
-  db.get(`SELECT t.*, v.nombre AS vecino_nombre, v.dni AS vecino_dni, v.telefono AS vecino_telefono, v.email AS vecino_email, v.direccion AS vecino_direccion, 
-                 m.nombre AS mascota_nombre, m.raza AS mascota_raza, m.edad AS mascota_edad, m.peso AS mascota_peso, 
-                 vet.nombre AS veterinario_nombre 
-          FROM turnos t 
-          JOIN vecinos v ON t.dni_vecino = v.dni 
-          JOIN mascotas m ON t.mascota_id = m.id 
-          LEFT JOIN veterinarios vet ON t.veterinario_id = vet.id 
-          WHERE t.id = ?`, [id], async (err, turno) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (!turno) return res.status(404).json({ error: 'Turno no encontrado' });
-
-    // Crear el documento PDF
-    const doc = new PDFDocument({ size: 'A4', margin: 50 });
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=turno_${id}.pdf`);
-    doc.pipe(res);
-
-    // Descargar el logo
-    const logoUrl = 'https://www.sanisidro.gob.ar/sites/default/files/Logo%20San%20Isidro%202017.png';
-    const response = await fetch(logoUrl);
-    const logoBuffer = await response.buffer();
-
-    // Agregar el logo
-    doc.image(logoBuffer, 50, 30, { width: 200 });
-
-    // Título
-    doc.moveDown(8);
-    doc.fontSize(20).text('Reserva de turno de castración', { align: 'center' });
-
-    // Datos del turno
-    doc.moveDown(2);
-    doc.fontSize(14).text('Datos del Turno', { underline: true });
-    doc.moveDown(0.5);
-    doc.fontSize(12).text(`ID del Turno: ${turno.id}`);
-    doc.text(`Puesto: ${turno.puesto}`);
-    doc.text(`Día: ${turno.dia}`);
-    doc.text(`Hora: ${turno.hora}`);
-    doc.text(`Veterinario: ${turno.veterinario_nombre || 'No asignado'}`);
-    doc.text(`Estado: ${turno.estado}`);
-
-    // Datos del vecino
-    doc.moveDown(1);
-    doc.fontSize(14).text('Datos del Vecino', { underline: true });
-    doc.moveDown(0.5);
-    doc.fontSize(12).text(`Nombre: ${turno.vecino_nombre}`);
-    doc.text(`DNI: ${turno.vecino_dni}`);
-    doc.text(`Teléfono: ${turno.vecino_telefono}`);
-    doc.text(`Email: ${turno.vecino_email}`);
-    doc.text(`Dirección: ${turno.vecino_direccion}`);
-
-    // Datos de la mascota
-    doc.moveDown(1);
-    doc.fontSize(14).text('Datos de la Mascota', { underline: true });
-    doc.moveDown(0.5);
-    doc.fontSize(12).text(`Nombre: ${turno.mascota_nombre}`);
-    doc.text(`Raza: ${turno.mascota_raza}`);
-    doc.text(`Edad: ${turno.mascota_edad}`);
-    doc.text(`Peso: ${turno.mascota_peso} kg`);
-
-    // Finalizar el PDF
-    doc.end();
+    const { id } = req.params;
+    console.log(`Solicitud para generar PDF del turno con ID: ${id}`);
+  
+    db.get(`SELECT t.*, v.nombre AS vecino_nombre, v.dni AS vecino_dni, v.telefono AS vecino_telefono, v.email AS vecino_email, v.direccion AS vecino_direccion, 
+                   m.nombre AS mascota_nombre, m.raza AS mascota_raza, m.edad AS mascota_edad, m.peso AS mascota_peso, 
+                   vet.nombre AS veterinario_nombre 
+            FROM turnos t 
+            JOIN vecinos v ON t.dni_vecino = v.dni 
+            JOIN mascotas m ON t.mascota_id = m.id 
+            LEFT JOIN veterinarios vet ON t.veterinario_id = vet.id 
+            WHERE t.id = ?`, [id], async (err, turno) => {
+      if (err) {
+        console.error('Error al buscar turno:', err.message);
+        return res.status(500).json({ error: err.message });
+      }
+      if (!turno) {
+        console.log(`Turno con ID ${id} no encontrado`);
+        return res.status(404).json({ error: 'Turno no encontrado' });
+      }
+  
+      console.log('Turno encontrado:', turno);
+  
+      // Crear el documento PDF
+      const doc = new PDFDocument({ size: 'A4', margin: 50 });
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename=turno_${id}.pdf`);
+      doc.pipe(res);
+  
+      // Descargar el logo
+      const logoUrl = 'https://www.sanisidro.gob.ar/sites/default/files/Logo%20San%20Isidro%202017.png';
+      try {
+        const response = await fetch(logoUrl);
+        if (!response.ok) throw new Error('Error al descargar el logo');
+        const logoBuffer = await response.buffer();
+        doc.image(logoBuffer, 50, 30, { width: 200 });
+      } catch (error) {
+        console.error('Error al descargar el logo:', error.message);
+        doc.text('No se pudo cargar el logo.', 50, 30);
+      }
+  
+      // Título
+      doc.moveDown(8);
+      doc.fontSize(20).text('Reserva de turno de castración', { align: 'center' });
+  
+      // Datos del turno
+      doc.moveDown(2);
+      doc.fontSize(14).text('Datos del Turno', { underline: true });
+      doc.moveDown(0.5);
+      doc.fontSize(12).text(`ID del Turno: ${turno.id}`);
+      doc.text(`Puesto: ${turno.puesto}`);
+      doc.text(`Día: ${turno.dia}`);
+      doc.text(`Hora: ${turno.hora}`);
+      doc.text(`Veterinario: ${turno.veterinario_nombre || 'No asignado'}`);
+      doc.text(`Estado: ${turno.estado}`);
+  
+      // Datos del vecino
+      doc.moveDown(1);
+      doc.fontSize(14).text('Datos del Vecino', { underline: true });
+      doc.moveDown(0.5);
+      doc.fontSize(12).text(`Nombre: ${turno.vecino_nombre}`);
+      doc.text(`DNI: ${turno.vecino_dni}`);
+      doc.text(`Teléfono: ${turno.vecino_telefono}`);
+      doc.text(`Email: ${turno.vecino_email}`);
+      doc.text(`Dirección: ${turno.vecino_direccion}`);
+  
+      // Datos de la mascota
+      doc.moveDown(1);
+      doc.fontSize(14).text('Datos de la Mascota', { underline: true });
+      doc.moveDown(0.5);
+      doc.fontSize(12).text(`Nombre: ${turno.mascota_nombre}`);
+      doc.text(`Raza: ${turno.mascota_raza}`);
+      doc.text(`Edad: ${turno.mascota_edad}`);
+      doc.text(`Peso: ${turno.mascota_peso} kg`);
+  
+      // Finalizar el PDF
+      doc.end();
+    });
   });
-});
 
 app.get('/api/turnos', (req, res) => {
   const token = req.headers.authorization;
