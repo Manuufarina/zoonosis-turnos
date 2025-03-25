@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-  "test": "echo \"Error: no test specified\" && exit 1"
-},
-"engines": {
-  "node": "16.x"
-},
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "engines": {
+    "node": "16.x"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -20,7 +20,7 @@
     "node-cron": "^3.0.3",
     "node-fetch": "^2.6.7",
     "nodemailer": "^6.10.0",
-    "pdfkit": "^0.16.0",
+    "pdfkit": "^0.13.0",
     "sqlite3": "^5.1.7"
   }
 }

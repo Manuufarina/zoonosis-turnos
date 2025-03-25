@@ -12,6 +12,12 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
+// Verificar que las variables de entorno críticas estén definidas al iniciar el servidor
+if (!process.env.JWT_SECRET) {
+  console.error('Error: JWT_SECRET no está definido en las variables de entorno');
+  process.exit(1);
+}
+
 const pool = new Pool({
   user: process.env.DB_USER,
   host: process.env.DB_HOST,
@@ -269,7 +275,7 @@ app.post('/api/vecinos', async (req, res) => {
     );
     res.status(201).json({ message: 'Vecino registrado' });
   } catch (err) {
-    res.status(400).json({ error: 'Error al registrar vecino' });
+    res.status(400).json({ error: 'Error al registrar vecino: ' + err.message });
   }
 });
 
@@ -282,7 +288,7 @@ app.post('/api/mascotas', async (req, res) => {
     );
     res.json({ message: 'Mascota registrada', id: result.rows[0].id });
   } catch (err) {
-    res.status(400).json({ error: 'Error al registrar mascota' });
+    res.status(400).json({ error: 'Error al registrar mascota: ' + err.message });
   }
 });
 
@@ -292,7 +298,7 @@ app.get('/api/mascotas/:dni', async (req, res) => {
     const result = await pool.query(`SELECT * FROM mascotas WHERE dni_vecino = $1`, [dni]);
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Error al obtener mascotas: ' + err.message });
   }
 });
 
@@ -301,7 +307,7 @@ app.get('/api/puestos', async (req, res) => {
     const result = await pool.query(`SELECT * FROM puestos`);
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Error al obtener puestos: ' + err.message });
   }
 });
 
@@ -310,7 +316,7 @@ app.get('/api/veterinarios', async (req, res) => {
     const result = await pool.query(`SELECT * FROM veterinarios`);
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Error al obtener veterinarios: ' + err.message });
   }
 });
 
@@ -323,30 +329,72 @@ app.get('/api/horarios/:puesto_id', async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Error al obtener horarios: ' + err.message });
   }
 });
 
 app.get('/api/horarios', async (req, res) => {
   const token = req.headers.authorization;
-  if (!token || jwt.verify(token, process.env.JWT_SECRET).role !== 'admin') {
-    return res.status(403).json({ error: 'Acceso denegado' });
+  console.log('Solicitud recibida para /api/horarios');
+  console.log('Token recibido:', token);
+  if (!token) {
+    console.log('Error: Token no proporcionado');
+    return res.status(403).json({ error: 'Acceso denegado: Token no proporcionado' });
   }
+
+  if (!process.env.JWT_SECRET) {
+    console.error('Error: JWT_SECRET no está definido en las variables de entorno');
+    return res.status(500).json({ error: 'Error interno del servidor: JWT_SECRET no configurado' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('Token decodificado:', decoded);
+    if (decoded.role !== 'admin') {
+      console.log('Error: Rol no autorizado');
+      return res.status(403).json({ error: 'Acceso denegado: Rol no autorizado' });
+    }
+  } catch (err) {
+    console.error('Error al verificar el token:', err.message);
+    return res.status(403).json({ error: 'Acceso denegado: Token inválido' });
+  }
+
   try {
     const result = await pool.query(
       `SELECT h.*, p.nombre as puesto FROM horarios h JOIN puestos p ON h.puesto_id = p.id`
     );
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Error al obtener horarios: ' + err.message });
   }
 });
 
 app.post('/api/horarios', async (req, res) => {
   const token = req.headers.authorization;
-  if (!token || jwt.verify(token, process.env.JWT_SECRET).role !== 'admin') {
-    return res.status(403).json({ error: 'Acceso denegado' });
+  console.log('Solicitud recibida para /api/horarios (POST)');
+  console.log('Token recibido:', token);
+  if (!token) {
+    console.log('Error: Token no proporcionado');
+    return res.status(403).json({ error: 'Acceso denegado: Token no proporcionado' });
   }
+
+  if (!process.env.JWT_SECRET) {
+    console.error('Error: JWT_SECRET no está definido en las variables de entorno');
+    return res.status(500).json({ error: 'Error interno del servidor: JWT_SECRET no configurado' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('Token decodificado:', decoded);
+    if (decoded.role !== 'admin') {
+      console.log('Error: Rol no autorizado');
+      return res.status(403).json({ error: 'Acceso denegado: Rol no autorizado' });
+    }
+  } catch (err) {
+    console.error('Error al verificar el token:', err.message);
+    return res.status(403).json({ error: 'Acceso denegado: Token inválido' });
+  }
+
   const { puesto_id, dia, hora } = req.body;
   try {
     const result = await pool.query(
@@ -355,14 +403,34 @@ app.post('/api/horarios', async (req, res) => {
     );
     res.json({ message: 'Horario agregado', id: result.rows[0].id });
   } catch (err) {
-    res.status(400).json({ error: 'Error al agregar horario' });
+    res.status(400).json({ error: 'Error al agregar horario: ' + err.message });
   }
 });
 
 app.post('/api/horarios/masivo', async (req, res) => {
   const token = req.headers.authorization;
-  if (!token || jwt.verify(token, process.env.JWT_SECRET).role !== 'admin') {
-    return res.status(403).json({ error: 'Acceso denegado' });
+  console.log('Solicitud recibida para /api/horarios/masivo');
+  console.log('Token recibido:', token);
+  if (!token) {
+    console.log('Error: Token no proporcionado');
+    return res.status(403).json({ error: 'Acceso denegado: Token no proporcionado' });
+  }
+
+  if (!process.env.JWT_SECRET) {
+    console.error('Error: JWT_SECRET no está definido en las variables de entorno');
+    return res.status(500).json({ error: 'Error interno del servidor: JWT_SECRET no configurado' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('Token decodificado:', decoded);
+    if (decoded.role !== 'admin') {
+      console.log('Error: Rol no autorizado');
+      return res.status(403).json({ error: 'Acceso denegado: Rol no autorizado' });
+    }
+  } catch (err) {
+    console.error('Error al verificar el token:', err.message);
+    return res.status(403).json({ error: 'Acceso denegado: Token inválido' });
   }
 
   const { puesto_id, dia, hora_inicio, hora_fin, veterinario_id } = req.body;
@@ -400,9 +468,30 @@ app.post('/api/horarios/masivo', async (req, res) => {
 
 app.put('/api/horarios/:id', async (req, res) => {
   const token = req.headers.authorization;
-  if (!token || jwt.verify(token, process.env.JWT_SECRET).role !== 'admin') {
-    return res.status(403).json({ error: 'Acceso denegado' });
+  console.log('Solicitud recibida para /api/horarios/:id (PUT)');
+  console.log('Token recibido:', token);
+  if (!token) {
+    console.log('Error: Token no proporcionado');
+    return res.status(403).json({ error: 'Acceso denegado: Token no proporcionado' });
   }
+
+  if (!process.env.JWT_SECRET) {
+    console.error('Error: JWT_SECRET no está definido en las variables de entorno');
+    return res.status(500).json({ error: 'Error interno del servidor: JWT_SECRET no configurado' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('Token decodificado:', decoded);
+    if (decoded.role !== 'admin') {
+      console.log('Error: Rol no autorizado');
+      return res.status(403).json({ error: 'Acceso denegado: Rol no autorizado' });
+    }
+  } catch (err) {
+    console.error('Error al verificar el token:', err.message);
+    return res.status(403).json({ error: 'Acceso denegado: Token inválido' });
+  }
+
   const { id } = req.params;
   const { puesto_id, dia, hora } = req.body;
   try {
@@ -412,21 +501,42 @@ app.put('/api/horarios/:id', async (req, res) => {
     );
     res.json({ message: 'Horario actualizado' });
   } catch (err) {
-    res.status(400).json({ error: 'Error al editar horario' });
+    res.status(400).json({ error: 'Error al editar horario: ' + err.message });
   }
 });
 
 app.delete('/api/horarios/:id', async (req, res) => {
   const token = req.headers.authorization;
-  if (!token || jwt.verify(token, process.env.JWT_SECRET).role !== 'admin') {
-    return res.status(403).json({ error: 'Acceso denegado' });
+  console.log('Solicitud recibida para /api/horarios/:id (DELETE)');
+  console.log('Token recibido:', token);
+  if (!token) {
+    console.log('Error: Token no proporcionado');
+    return res.status(403).json({ error: 'Acceso denegado: Token no proporcionado' });
   }
+
+  if (!process.env.JWT_SECRET) {
+    console.error('Error: JWT_SECRET no está definido en las variables de entorno');
+    return res.status(500).json({ error: 'Error interno del servidor: JWT_SECRET no configurado' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('Token decodificado:', decoded);
+    if (decoded.role !== 'admin') {
+      console.log('Error: Rol no autorizado');
+      return res.status(403).json({ error: 'Acceso denegado: Rol no autorizado' });
+    }
+  } catch (err) {
+    console.error('Error al verificar el token:', err.message);
+    return res.status(403).json({ error: 'Acceso denegado: Token inválido' });
+  }
+
   const { id } = req.params;
   try {
     await pool.query(`DELETE FROM horarios WHERE id = $1`, [id]);
     res.json({ message: 'Horario eliminado' });
   } catch (err) {
-    res.status(400).json({ error: 'Error al eliminar horario' });
+    res.status(400).json({ error: 'Error al eliminar horario: ' + err.message });
   }
 });
 
@@ -579,12 +689,14 @@ app.get('/api/turnos/pdf/:id', async (req, res) => {
     const textColor = '#333333';
 
     doc.rect(0, 0, doc.page.width, 100).fill('#F5F5F5');
-    const logoUrl = 'https://citymis.co/custom/sanisidro/_images/slide-logo.png';
+    const logoUrl = 'https://www.sanisidro.gob.ar/sites/default/files/Logo%20San%20Isidro%202017.png';
     try {
+      console.log('Descargando logo...');
       const response = await fetch(logoUrl);
-      if (!response.ok) throw new Error('Error al descargar el logo');
+      if (!response.ok) throw new Error(`Error al descargar el logo: ${response.statusText}`);
       const logoBuffer = await response.buffer();
       doc.image(logoBuffer, 40, 20, { width: 150 });
+      console.log('Logo descargado y agregado al PDF');
     } catch (error) {
       console.error('Error al descargar el logo:', error.message);
       doc.text('No se pudo cargar el logo.', 40, 20);
@@ -663,127 +775,49 @@ app.get('/api/turnos/pdf/:id', async (req, res) => {
        .stroke(secondaryColor);
 
     doc.end();
+    console.log(`PDF generado para el turno con ID ${id}`);
   } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get('/api/turnos', async (req, res) => {
-  const token = req.headers.authorization;
-  if (!token || jwt.verify(token, process.env.JWT_SECRET).role !== 'admin') {
-    return res.status(403).json({ error: 'Acceso denegado' });
-  }
-  try {
-    const result = await pool.query(
-      `SELECT t.*, v.nombre AS vecino_nombre, m.nombre AS mascota_nombre, vet.nombre AS veterinario_nombre 
-       FROM turnos t 
-       JOIN vecinos v ON t.dni_vecino = v.dni 
-       JOIN mascotas m ON t.mascota_id = m.id 
-       LEFT JOIN veterinarios vet ON t.veterinario_id = vet.id`
-    );
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get('/api/turnos/vecino/:dni', async (req, res) => {
-  const { dni } = req.params;
-  try {
-    const result = await pool.query(
-      `SELECT t.*, v.nombre AS vecino_nombre, m.nombre AS mascota_nombre, vet.nombre AS veterinario_nombre 
-       FROM turnos t 
-       JOIN vecinos v ON t.dni_vecino = v.dni 
-       JOIN mascotas m ON t.mascota_id = m.id 
-       LEFT JOIN veterinarios vet ON t.veterinario_id = vet.id 
-       WHERE t.dni_vecino = $1`,
-      [dni]
-    );
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.put('/api/turnos/:id/cancelar', async (req, res) => {
-  const token = req.headers.authorization;
-  if (!token || jwt.verify(token, process.env.JWT_SECRET).role !== 'admin') {
-    return res.status(403).json({ error: 'Acceso denegado' });
-  }
-  const { id } = req.params;
-  try {
-    const turnoResult = await pool.query(
-      `SELECT * FROM turnos WHERE id = $1 AND estado = 'Reservado'`,
-      [id]
-    );
-    if (turnoResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Turno no encontrado o no reservado' });
-    }
-
-    const turno = turnoResult.rows[0];
-    await pool.query(`UPDATE turnos SET estado = 'Cancelado' WHERE id = $1`, [id]);
-    await pool.query(
-      `UPDATE horarios SET disponible = 1 WHERE puesto_id = (SELECT id FROM puestos WHERE nombre = $1) AND dia = $2 AND hora = $3`,
-      [turno.puesto, turno.dia, turno.hora]
-    );
-    res.json({ message: 'Turno cancelado' });
-  } catch (err) {
-    res.status(400).json({ error: 'Error al cancelar turno' });
-  }
-});
-
-app.put('/api/turnos/vecino/:id/cancelar', async (req, res) => {
-  const { id } = req.params;
-  const { dni } = req.body;
-  console.log(`Solicitud para cancelar turno con ID ${id} por vecino con DNI ${dni}`);
-
-  try {
-    const turnoResult = await pool.query(
-      `SELECT * FROM turnos WHERE id = $1 AND dni_vecino = $2 AND estado = 'Reservado'`,
-      [id, dni]
-    );
-    if (turnoResult.rows.length === 0) {
-      console.log(`Turno con ID ${id} no encontrado o no pertenece al vecino con DNI ${dni}`);
-      return res.status(404).json({ error: 'Turno no encontrado o no pertenece al vecino' });
-    }
-
-    const turno = turnoResult.rows[0];
-    await pool.query(`UPDATE turnos SET estado = 'Cancelado' WHERE id = $1`, [id]);
-    await pool.query(
-      `UPDATE horarios SET disponible = 1 WHERE puesto_id = (SELECT id FROM puestos WHERE nombre = $1) AND dia = $2 AND hora = $3`,
-      [turno.puesto, turno.dia, turno.hora]
-    );
-    console.log(`Turno con ID ${id} cancelado exitosamente por vecino con DNI ${dni}`);
-    res.json({ message: 'Turno cancelado' });
-  } catch (err) {
-    res.status(400).json({ error: 'Error al cancelar turno' });
-  }
-});
-
-app.post('/api/admin/login', (req, res) => {
-  const { username, password } = req.body;
-  const adminUser = process.env.ADMIN_USERNAME;
-  const adminPass = process.env.ADMIN_PASSWORD;
-  if (username === adminUser && password === adminPass) {
-    const token = jwt.sign({ role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    res.json({ token });
-  } else {
-    res.status(401).json({ error: 'Credenciales inválidas' });
+    console.error('Error al generar el PDF:', err.message);
+    res.status(500).json({ error: 'Error al generar el PDF: ' + err.message });
   }
 });
 
 app.get('/api/turnos/pdf/rango', async (req, res) => {
+  console.log('Solicitud recibida para /api/turnos/pdf/rango');
+  console.log('Parámetros:', req.query);
+
   const token = req.headers.authorization;
-  if (!token || jwt.verify(token, process.env.JWT_SECRET).role !== 'admin') {
-    return res.status(403).json({ error: 'Acceso denegado' });
+  console.log('Token recibido:', token);
+  if (!token) {
+    console.log('Error: Token no proporcionado');
+    return res.status(403).json({ error: 'Acceso denegado: Token no proporcionado' });
+  }
+
+  if (!process.env.JWT_SECRET) {
+    console.error('Error: JWT_SECRET no está definido en las variables de entorno');
+    return res.status(500).json({ error: 'Error interno del servidor: JWT_SECRET no configurado' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('Token decodificado:', decoded);
+    if (decoded.role !== 'admin') {
+      console.log('Error: Rol no autorizado');
+      return res.status(403).json({ error: 'Acceso denegado: Rol no autorizado' });
+    }
+  } catch (err) {
+    console.error('Error al verificar el token:', err.message);
+    return res.status(403).json({ error: 'Acceso denegado: Token inválido' });
   }
 
   const { desde, hasta } = req.query;
   if (!desde || !hasta) {
+    console.log('Error: Faltan parámetros de fecha');
     return res.status(400).json({ error: 'Faltan parámetros de fecha' });
   }
 
   try {
+    console.log('Ejecutando consulta SQL...');
     const result = await pool.query(
       `SELECT t.*, v.nombre AS vecino_nombre, v.dni AS vecino_dni, m.nombre AS mascota_nombre, vet.nombre AS veterinario_nombre 
        FROM turnos t 
@@ -794,12 +828,15 @@ app.get('/api/turnos/pdf/rango', async (req, res) => {
        ORDER BY t.dia, t.hora`,
       [desde, hasta]
     );
+    console.log('Consulta ejecutada. Filas obtenidas:', result.rows.length);
 
     const turnos = result.rows;
     if (turnos.length === 0) {
+      console.log('No hay turnos reservados en este rango de fechas');
       return res.status(404).json({ error: 'No hay turnos reservados en este rango de fechas' });
     }
 
+    console.log('Generando PDF...');
     const doc = new PDFDocument({ size: 'A4', margin: 40 });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=turnos_${desde}_a_${hasta}.pdf`);
@@ -810,12 +847,14 @@ app.get('/api/turnos/pdf/rango', async (req, res) => {
     const textColor = '#333333';
 
     doc.rect(0, 0, doc.page.width, 100).fill('#F5F5F5');
-    const logoUrl = 'https://citymis.co/custom/sanisidro/_images/slide-logo.png';
+    const logoUrl = 'https://www.sanisidro.gob.ar/sites/default/files/Logo%20San%20Isidro%202017.png';
     try {
+      console.log('Descargando logo...');
       const response = await fetch(logoUrl);
-      if (!response.ok) throw new Error('Error al descargar el logo');
+      if (!response.ok) throw new Error(`Error al descargar el logo: ${response.statusText}`);
       const logoBuffer = await response.buffer();
       doc.image(logoBuffer, 40, 20, { width: 150 });
+      console.log('Logo descargado y agregado al PDF');
     } catch (error) {
       console.error('Error al descargar el logo:', error.message);
       doc.text('No se pudo cargar el logo.', 40, 20);
@@ -857,11 +896,11 @@ app.get('/api/turnos/pdf/rango', async (req, res) => {
     let y = tableTop + 30;
     turnos.forEach((turno) => {
       doc.text(turno.id.toString(), col1, y);
-      doc.text(turno.vecino_nombre, col2, y);
-      doc.text(turno.mascota_nombre, col3, y);
-      doc.text(turno.puesto, col4, y);
-      doc.text(turno.dia, col5, y);
-      doc.text(turno.hora, col6, y);
+      doc.text(turno.vecino_nombre || 'N/A', col2, y);
+      doc.text(turno.mascota_nombre || 'N/A', col3, y);
+      doc.text(turno.puesto || 'N/A', col4, y);
+      doc.text(turno.dia || 'N/A', col5, y);
+      doc.text(turno.hora || 'N/A', col6, y);
       doc.text(turno.veterinario_nombre || 'No asignado', col7, y);
       y += 20;
 
@@ -883,10 +922,209 @@ app.get('/api/turnos/pdf/rango', async (req, res) => {
        .stroke(secondaryColor);
 
     doc.end();
+    console.log('PDF generado y enviado');
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Error en /api/turnos/pdf/rango:', err.message);
+    res.status(500).json({ error: 'Error al generar el PDF: ' + err.message });
   }
 });
 
+app.get('/api/turnos', async (req, res) => {
+  const token = req.headers.authorization;
+  console.log('Solicitud recibida para /api/turnos');
+  console.log('Token recibido:', token);
+  if (!token) {
+    console.log('Error: Token no proporcionado');
+    return res.status(403).json({ error: 'Acceso denegado: Token no proporcionado' });
+  }
+
+  if (!process.env.JWT_SECRET) {
+    console.error('Error: JWT_SECRET no está definido en las variables de entorno');
+    return res.status(500).json({ error: 'Error interno del servidor: JWT_SECRET no configurado' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('Token decodificado:', decoded);
+    if (decoded.role !== 'admin') {
+      console.log('Error: Rol no autorizado');
+      return res.status(403).json({ error: 'Acceso denegado: Rol no autorizado' });
+    }
+  } catch (err) {
+    console.error('Error al verificar el token:', err.message);
+    return res.status(403).json({ error: 'Acceso denegado: Token inválido' });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT t.*, v.nombre AS vecino_nombre, m.nombre AS mascota_nombre, vet.nombre AS veterinario_nombre 
+       FROM turnos t 
+       JOIN vecinos v ON t.dni_vecino = v.dni 
+       JOIN mascotas m ON t.mascota_id = m.id 
+       LEFT JOIN veterinarios vet ON t.veterinario_id = vet.id`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener turnos: ' + err.message });
+  }
+});
+
+app.get('/api/turnos/vecino/:dni', async (req, res) => {
+  const { dni } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT t.*, v.nombre AS vecino_nombre, m.nombre AS mascota_nombre, vet.nombre AS veterinario_nombre 
+       FROM turnos t 
+       JOIN vecinos v ON t.dni_vecino = v.dni 
+       JOIN mascotas m ON t.mascota_id = m.id 
+       LEFT JOIN veterinarios vet ON t.veterinario_id = vet.id 
+       WHERE t.dni_vecino = $1`,
+      [dni]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener turnos del vecino: ' + err.message });
+  }
+});
+
+app.put('/api/turnos/:id/cancelar', async (req, res) => {
+  const token = req.headers.authorization;
+  console.log('Solicitud recibida para /api/turnos/:id/cancelar');
+  console.log('Token recibido:', token);
+  if (!token) {
+    console.log('Error: Token no proporcionado');
+    return res.status(403).json({ error: 'Acceso denegado: Token no proporcionado' });
+  }
+
+  if (!process.env.JWT_SECRET) {
+    console.error('Error: JWT_SECRET no está definido en las variables de entorno');
+    return res.status(500).json({ error: 'Error interno del servidor: JWT_SECRET no configurado' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('Token decodificado:', decoded);
+    if (decoded.role !== 'admin') {
+      console.log('Error: Rol no autorizado');
+      return res.status(403).json({ error: 'Acceso denegado: Rol no autorizado' });
+    }
+  } catch (err) {
+    console.error('Error al verificar el token:', err.message);
+    return res.status(403).json({ error: 'Acceso denegado: Token inválido' });
+  }
+
+  const { id } = req.params;
+  try {
+    const turnoResult = await pool.query(
+      `SELECT * FROM turnos WHERE id = $1 AND estado = 'Reservado'`,
+      [id]
+    );
+    if (turnoResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Turno no encontrado o no reservado' });
+    }
+
+    const turno = turnoResult.rows[0];
+    await pool.query(`UPDATE turnos SET estado = 'Cancelado' WHERE id = $1`, [id]);
+    await pool.query(
+      `UPDATE horarios SET disponible = 1 WHERE puesto_id = (SELECT id FROM puestos WHERE nombre = $1) AND dia = $2 AND hora = $3`,
+      [turno.puesto, turno.dia, turno.hora]
+    );
+
+    const vecino = await pool.query(`SELECT nombre, email FROM vecinos WHERE dni = $1`, [turno.dni_vecino]);
+    if (vecino.rows.length > 0 && vecino.rows[0].email) {
+      const mailOptions = {
+        from: process.env.EMAIL_USER,
+        to: vecino.rows[0].email,
+        subject: 'Cancelación de Turno - Zoonosis San Isidro',
+        html: `
+          <div style="text-align: center; font-family: Arial, sans-serif; color: #333;">
+            <img src="https://www.sanisidro.gob.ar/sites/default/files/Logo%20San%20Isidro%202017.png" alt="Logo Municipio San Isidro" style="width: 200px;">
+            <h2>Cancelación de Turno</h2>
+            <p>Estimado Vecino ${vecino.rows[0].nombre || ''} DNI ${turno.dni_vecino},</p>
+            <p>Le informamos que su turno para el día ${turno.dia} a las ${turno.hora} en el puesto ${turno.puesto} ha sido cancelado.</p>
+            <p>Si desea reservar otro turno, puede hacerlo a través de nuestro sistema.</p>
+            <p>Desde ya, muchas gracias.</p>
+            <p><strong>Zoonosis San Isidro</strong></p>
+          </div>
+        `
+      };
+      transporter.sendMail(mailOptions, (error) => {
+        if (error) console.error('Error al enviar email de cancelación:', error);
+      });
+    }
+
+    res.json({ message: 'Turno cancelado' });
+  } catch (err) {
+    res.status(400).json({ error: 'Error al cancelar turno: ' + err.message });
+  }
+});
+
+app.put('/api/turnos/:id/cancelar/vecino', async (req, res) => {
+  const { id } = req.params;
+  const { dni } = req.body;
+
+  try {
+    const turnoResult = await pool.query(
+      `SELECT * FROM turnos WHERE id = $1 AND dni_vecino = $2 AND estado = 'Reservado'`,
+      [id, dni]
+    );
+    if (turnoResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Turno no encontrado, no reservado o no pertenece al vecino' });
+    }
+
+    const turno = turnoResult.rows[0];
+    await pool.query(`UPDATE turnos SET estado = 'Cancelado' WHERE id = $1`, [id]);
+    await pool.query(
+      `UPDATE horarios SET disponible = 1 WHERE puesto_id = (SELECT id FROM puestos WHERE nombre = $1) AND dia = $2 AND hora = $3`,
+      [turno.puesto, turno.dia, turno.hora]
+    );
+
+    const vecino = await pool.query(`SELECT nombre, email FROM vecinos WHERE dni = $1`, [dni]);
+    if (vecino.rows.length > 0 && vecino.rows[0].email) {
+      const mailOptions = {
+        from: process.env.EMAIL_USER,
+        to: vecino.rows[0].email,
+        subject: 'Cancelación de Turno - Zoonosis San Isidro',
+        html: `
+          <div style="text-align: center; font-family: Arial, sans-serif; color: #333;">
+            <img src="https://www.sanisidro.gob.ar/sites/default/files/Logo%20San%20Isidro%202017.png" alt="Logo Municipio San Isidro" style="width: 200px;">
+            <h2>Cancelación de Turno</h2>
+            <p>Estimado Vecino ${vecino.rows[0].nombre || ''} DNI ${dni},</p>
+            <p>Le informamos que su turno para el día ${turno.dia} a las ${turno.hora} en el puesto ${turno.puesto} ha sido cancelado.</p>
+            <p>Si desea reservar otro turno, puede hacerlo a través de nuestro sistema.</p>
+            <p>Desde ya, muchas gracias.</p>
+            <p><strong>Zoonosis San Isidro</strong></p>
+          </div>
+        `
+      };
+      transporter.sendMail(mailOptions, (error) => {
+        if (error) console.error('Error al enviar email de cancelación:', error);
+      });
+    }
+
+    res.json({ message: 'Turno cancelado' });
+  } catch (err) {
+    res.status(400).json({ error: 'Error al cancelar turno: ' + err.message });
+  }
+});
+
+app.post('/api/admin/login', async (req, res) => {
+  const { username, password } = req.body;
+  if (username === process.env.ADMIN_USERNAME && password === process.env.ADMIN_PASSWORD) {
+    const token = jwt.sign({ role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    res.json({ token });
+  } else {
+    res.status(401).json({ error: 'Credenciales incorrectas' });
+  }
+});
+
+// Middleware para manejar errores no capturados
+app.use((err, req, res, next) => {
+  console.error('Error no capturado:', err.stack);
+  res.status(500).json({ error: 'Error interno del servidor: ' + err.message });
+});
+
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Servidor corriendo en el puerto ${PORT}`);
+});
