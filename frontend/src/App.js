@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { BrowserRouter as Router, Routes, Route, useParams, useNavigate } from 'react-router-dom';
 import './App.css';
 
 function CancelarTurnoPage() {
@@ -89,6 +89,8 @@ function MainApp() {
   const [horariosAdmin, setHorariosAdmin] = useState([]);
   const [turnosVecino, setTurnosVecino] = useState([]);
   const [filtroTurnos, setFiltroTurnos] = useState('Todos');
+  const [fechaInicio, setFechaInicio] = useState(''); // Nuevo estado para fecha inicio
+  const [fechaFin, setFechaFin] = useState(''); // Nuevo estado para fecha fin
   const backendUrl = 'https://zoonosis-backend.onrender.com';
 
   useEffect(() => {
@@ -333,6 +335,35 @@ function MainApp() {
       setIsAdmin(true);
     } catch (error) {
       alert(error.response?.data?.error || 'Error al iniciar sesión');
+    }
+  };
+
+  const descargarPDFRango = async () => {
+    if (!fechaInicio || !fechaFin) {
+      alert('Por favor, selecciona ambas fechas.');
+      return;
+    }
+    if (new Date(fechaInicio) > new Date(fechaFin)) {
+      alert('La fecha de inicio no puede ser posterior a la fecha de fin.');
+      return;
+    }
+    try {
+      const response = await axios.get(
+        `${backendUrl}/api/turnos/pdf/rango?desde=${fechaInicio}&hasta=${fechaFin}`,
+        {
+          headers: { Authorization: token },
+          responseType: 'blob',
+        }
+      );
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `turnos_${fechaInicio}_a_${fechaFin}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      alert('Error al descargar el PDF: ' + (error.response?.data?.error || error.message));
     }
   };
 
@@ -646,6 +677,28 @@ function MainApp() {
               ))}
             </tbody>
           </table>
+
+          {/* Nuevo Formulario para Descargar PDF por Rango de Fechas */}
+          <h3>Descargar Turnos en PDF por Rango de Fechas</h3>
+          <div>
+            <label>Desde: </label>
+            <input
+              type="date"
+              value={fechaInicio}
+              onChange={(e) => setFechaInicio(e.target.value)}
+              required
+            />
+            <label style={{ marginLeft: '10px' }}>Hasta: </label>
+            <input
+              type="date"
+              value={fechaFin}
+              onChange={(e) => setFechaFin(e.target.value)}
+              required
+            />
+            <button onClick={descargarPDFRango} style={{ marginLeft: '10px' }}>
+              Descargar PDF
+            </button>
+          </div>
 
           <h3>Gestionar Horarios</h3>
           <form onSubmit={agregarHorario}>
