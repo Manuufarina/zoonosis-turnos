@@ -18,9 +18,6 @@ const pool = new Pool({
   database: process.env.DB_NAME,
   password: process.env.DB_PASSWORD,
   port: process.env.DB_PORT || 5432,
-  ssl: {
-    rejectUnauthorized: false // Necesario para Render
-  }
 });
 
 pool.connect((err) => {
@@ -379,9 +376,9 @@ app.post('/api/horarios/masivo', async (req, res) => {
   let current = inicio;
 
   while (current <= fin) {
-    const hora = current.toTimeString().slice(0, 5); // Formato HH:MM
+    const hora = current.toTimeString().slice(0, 5);
     horarios.push(hora);
-    current.setHours(current.getHours() + 1); // Intervalo de 1 hora
+    current.setHours(current.getHours() + 1);
   }
 
   let insertedCount = 0;
@@ -478,7 +475,7 @@ app.post('/api/turnos', async (req, res) => {
       subject: 'Confirmación de Turno - Zoonosis San Isidro',
       html: `
         <div style="text-align: center; font-family: Arial, sans-serif; color: #333;">
-          <img src="https://www.sanisidro.gob.ar/sites/default/files/Logo%20San%20Isidro%202017.png" alt="Logo Municipio San Isidro" style="width: 200px;">
+          <img src="https://citymis.co/custom/sanisidro/_images/slide-logo.png" alt="Logo Municipio San Isidro" style="width: 200px;">
           <h2>Confirmación de Turno</h2>
           <p>Estimado Vecino ${vecino.rows[0].nombre || ''} DNI ${dni_vecino},</p>
           <p>Le confirmamos su turno para castración de su mascota ${mascota.rows[0]?.nombre || ''} para el día ${dia} a las ${hora} en el puesto ${puesto}.</p>
@@ -582,7 +579,7 @@ app.get('/api/turnos/pdf/:id', async (req, res) => {
     const textColor = '#333333';
 
     doc.rect(0, 0, doc.page.width, 100).fill('#F5F5F5');
-    const logoUrl = 'https://www.sanisidro.gob.ar/sites/default/files/Logo%20San%20Isidro%202017.png';
+    const logoUrl = 'https://citymis.co/custom/sanisidro/_images/slide-logo.png';
     try {
       const response = await fetch(logoUrl);
       if (!response.ok) throw new Error('Error al descargar el logo');
@@ -606,115 +603,68 @@ app.get('/api/turnos/pdf/:id', async (req, res) => {
     doc.moveDown(2);
     doc.fontSize(16)
        .fillColor(primaryColor)
-       .text('Datos del Turno', { align: 'center' });
-
-    doc.moveDown(1);
+       .text('Datos del Turno', 40, doc.y, { underline: true });
+    doc.moveDown(0.5);
     doc.fontSize(12)
        .fillColor(textColor)
-       .text(`ID del Turno: ${turno.id}`, 40)
-       .text(`Fecha: ${turno.dia} a las ${turno.hora}`)
-       .text(`Puesto: ${turno.puesto}`)
-       .text(`Veterinario: ${turno.veterinario_nombre || 'No asignado'}`)
-       .text(`Estado: ${turno.estado}`);
-
-    doc.moveDown(2);
-    doc.fontSize(16)
-       .fillColor(primaryColor)
-       .text('Datos del Vecino', { align: 'center' });
+       .text(`ID del Turno: ${turno.id}`, 50);
+    doc.text(`Puesto: ${turno.puesto}`, 50);
+    doc.text(`Día: ${turno.dia}`, 50);
+    doc.text(`Hora: ${turno.hora}`, 50);
+    doc.text(`Veterinario: ${turno.veterinario_nombre || 'No asignado'}`, 50);
+    doc.text(`Estado: ${turno.estado}`, 50);
 
     doc.moveDown(1);
-    doc.fontSize(12)
-       .fillColor(textColor)
-       .text(`Nombre: ${turno.vecino_nombre}`)
-       .text(`DNI: ${turno.vecino_dni}`)
-       .text(`Teléfono: ${turno.vecino_telefono || 'No disponible'}`)
-       .text(`Email: ${turno.vecino_email || 'No disponible'}`)
-       .text(`Dirección: ${turno.vecino_direccion || 'No disponible'}`);
-
-    doc.moveDown(2);
-    doc.fontSize(16)
-       .fillColor(primaryColor)
-       .text('Datos de la Mascota', { align: 'center' });
-
-    doc.moveDown(1);
-    doc.fontSize(12)
-       .fillColor(textColor)
-       .text(`Nombre: ${turno.mascota_nombre}`)
-       .text(`Raza: ${turno.mascota_raza}`)
-       .text(`Edad: ${turno.mascota_edad}`)
-       .text(`Peso: ${turno.mascota_peso} kg`);
-
-    doc.moveDown(2);
     doc.lineCap('butt')
        .moveTo(40, doc.y)
        .lineTo(doc.page.width - 40, doc.y)
        .stroke(secondaryColor);
 
     doc.moveDown(1);
+    doc.fontSize(16)
+       .fillColor(primaryColor)
+       .text('Datos del Vecino', 40, doc.y, { underline: true });
+    doc.moveDown(0.5);
+    doc.fontSize(12)
+       .fillColor(textColor)
+       .text(`Nombre: ${turno.vecino_nombre}`, 50);
+    doc.text(`DNI: ${turno.vecino_dni}`, 50);
+    doc.text(`Teléfono: ${turno.vecino_telefono}`, 50);
+    doc.text(`Email: ${turno.vecino_email}`, 50);
+    doc.text(`Dirección: ${turno.vecino_direccion}`, 50);
+
+    doc.moveDown(1);
+    doc.lineCap('butt')
+       .moveTo(40, doc.y)
+       .lineTo(doc.page.width - 40, doc.y)
+       .stroke(secondaryColor);
+
+    doc.moveDown(1);
+    doc.fontSize(16)
+       .fillColor(primaryColor)
+       .text('Datos de la Mascota', 40, doc.y, { underline: true });
+    doc.moveDown(0.5);
+    doc.fontSize(12)
+       .fillColor(textColor)
+       .text(`Nombre: ${turno.mascota_nombre}`, 50);
+    doc.text(`Raza: ${turno.mascota_raza}`, 50);
+    doc.text(`Edad: ${turno.mascota_edad}`, 50);
+    doc.text(`Peso: ${turno.mascota_peso} kg`, 50);
+
     doc.fontSize(10)
        .fillColor(textColor)
-       .text('Zoonosis San Isidro - Municipalidad de San Isidro', { align: 'center' })
-       .text('Ante cualquier duda, contactar al 4512-3151/3495 de lunes a viernes de 8 a 14 hs.', { align: 'center' });
+       .text('Zoonosis San Isidro', 40, doc.page.height - 60, { align: 'center' });
+    doc.text('Teléfono: (011) 4512-3456 | Email: zoonosis@sanisidro.gob.ar', 40, doc.page.height - 45, { align: 'center' });
+    doc.text('Dirección: Av. Centenario 123, San Isidro, Buenos Aires', 40, doc.page.height - 30, { align: 'center' });
+
+    doc.lineCap('butt')
+       .moveTo(40, doc.page.height - 70)
+       .lineTo(doc.page.width - 40, doc.page.height - 70)
+       .stroke(secondaryColor);
 
     doc.end();
   } catch (err) {
-    console.error('Error al generar PDF:', err.message);
-    res.status(500).json({ error: 'Error al generar el PDF: ' + err.message });
-  }
-});
-
-app.get('/api/turnos/vecino/:dni', async (req, res) => {
-  const { dni } = req.params;
-  try {
-    const result = await pool.query(
-      `SELECT t.*, m.nombre AS mascota_nombre, vet.nombre AS veterinario_nombre 
-       FROM turnos t 
-       JOIN mascotas m ON t.mascota_id = m.id 
-       LEFT JOIN veterinarios vet ON t.veterinario_id = vet.id 
-       WHERE t.dni_vecino = $1`,
-      [dni]
-    );
-    res.json(result.rows);
-  } catch (err) {
     res.status(500).json({ error: err.message });
-  }
-});
-
-app.put('/api/turnos/vecino/:id/cancelar', async (req, res) => {
-  const { id } = req.params;
-  const { dni } = req.body;
-
-  try {
-    const turnoResult = await pool.query(
-      `SELECT * FROM turnos WHERE id = $1 AND dni_vecino = $2`,
-      [id, dni]
-    );
-    if (turnoResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Turno no encontrado o no pertenece al vecino' });
-    }
-    if (turnoResult.rows[0].estado !== 'Reservado') {
-      return res.status(400).json({ error: 'El turno no puede ser cancelado porque no está reservado' });
-    }
-
-    await pool.query(
-      `UPDATE turnos SET estado = 'Cancelado' WHERE id = $1`,
-      [id]
-    );
-
-    const horarioResult = await pool.query(
-      `SELECT * FROM horarios WHERE puesto_id = (SELECT id FROM puestos WHERE nombre = $1) AND dia = $2 AND hora = $3`,
-      [turnoResult.rows[0].puesto, turnoResult.rows[0].dia, turnoResult.rows[0].hora]
-    );
-    if (horarioResult.rows.length > 0) {
-      await pool.query(
-        `UPDATE horarios SET disponible = 1 WHERE id = $1`,
-        [horarioResult.rows[0].id]
-      );
-    }
-
-    res.json({ message: 'Turno cancelado' });
-  } catch (err) {
-    res.status(400).json({ error: 'Error al cancelar turno: ' + err.message });
   }
 });
 
@@ -737,32 +687,73 @@ app.get('/api/turnos', async (req, res) => {
   }
 });
 
+app.get('/api/turnos/vecino/:dni', async (req, res) => {
+  const { dni } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT t.*, v.nombre AS vecino_nombre, m.nombre AS mascota_nombre, vet.nombre AS veterinario_nombre 
+       FROM turnos t 
+       JOIN vecinos v ON t.dni_vecino = v.dni 
+       JOIN mascotas m ON t.mascota_id = m.id 
+       LEFT JOIN veterinarios vet ON t.veterinario_id = vet.id 
+       WHERE t.dni_vecino = $1`,
+      [dni]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.put('/api/turnos/:id/cancelar', async (req, res) => {
   const token = req.headers.authorization;
   if (!token || jwt.verify(token, process.env.JWT_SECRET).role !== 'admin') {
     return res.status(403).json({ error: 'Acceso denegado' });
   }
   const { id } = req.params;
+  try {
+    const turnoResult = await pool.query(
+      `SELECT * FROM turnos WHERE id = $1 AND estado = 'Reservado'`,
+      [id]
+    );
+    if (turnoResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Turno no encontrado o no reservado' });
+    }
+
+    const turno = turnoResult.rows[0];
+    await pool.query(`UPDATE turnos SET estado = 'Cancelado' WHERE id = $1`, [id]);
+    await pool.query(
+      `UPDATE horarios SET disponible = 1 WHERE puesto_id = (SELECT id FROM puestos WHERE nombre = $1) AND dia = $2 AND hora = $3`,
+      [turno.puesto, turno.dia, turno.hora]
+    );
+    res.json({ message: 'Turno cancelado' });
+  } catch (err) {
+    res.status(400).json({ error: 'Error al cancelar turno' });
+  }
+});
+
+app.put('/api/turnos/vecino/:id/cancelar', async (req, res) => {
+  const { id } = req.params;
+  const { dni } = req.body;
+  console.log(`Solicitud para cancelar turno con ID ${id} por vecino con DNI ${dni}`);
 
   try {
-    const turnoResult = await pool.query(`SELECT * FROM turnos WHERE id = $1`, [id]);
-    if (turnoResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Turno no encontrado' });
-    }
-    if (turnoResult.rows[0].estado !== 'Reservado') {
-      return res.status(400).json({ error: 'El turno no puede ser cancelado porque no está reservado' });
-    }
-
-    await pool.query(`UPDATE turnos SET estado = 'Cancelado' WHERE id = $1`, [id]);
-
-    const horarioResult = await pool.query(
-      `SELECT * FROM horarios WHERE puesto_id = (SELECT id FROM puestos WHERE nombre = $1) AND dia = $2 AND hora = $3`,
-      [turnoResult.rows[0].puesto, turnoResult.rows[0].dia, turnoResult.rows[0].hora]
+    const turnoResult = await pool.query(
+      `SELECT * FROM turnos WHERE id = $1 AND dni_vecino = $2 AND estado = 'Reservado'`,
+      [id, dni]
     );
-    if (horarioResult.rows.length > 0) {
-      await pool.query(`UPDATE horarios SET disponible = 1 WHERE id = $1`, [horarioResult.rows[0].id]);
+    if (turnoResult.rows.length === 0) {
+      console.log(`Turno con ID ${id} no encontrado o no pertenece al vecino con DNI ${dni}`);
+      return res.status(404).json({ error: 'Turno no encontrado o no pertenece al vecino' });
     }
 
+    const turno = turnoResult.rows[0];
+    await pool.query(`UPDATE turnos SET estado = 'Cancelado' WHERE id = $1`, [id]);
+    await pool.query(
+      `UPDATE horarios SET disponible = 1 WHERE puesto_id = (SELECT id FROM puestos WHERE nombre = $1) AND dia = $2 AND hora = $3`,
+      [turno.puesto, turno.dia, turno.hora]
+    );
+    console.log(`Turno con ID ${id} cancelado exitosamente por vecino con DNI ${dni}`);
     res.json({ message: 'Turno cancelado' });
   } catch (err) {
     res.status(400).json({ error: 'Error al cancelar turno' });
@@ -771,11 +762,13 @@ app.put('/api/turnos/:id/cancelar', async (req, res) => {
 
 app.post('/api/admin/login', (req, res) => {
   const { username, password } = req.body;
-  if (username === process.env.ADMIN_USERNAME && password === process.env.ADMIN_PASSWORD) {
+  const adminUser = process.env.ADMIN_USERNAME;
+  const adminPass = process.env.ADMIN_PASSWORD;
+  if (username === adminUser && password === adminPass) {
     const token = jwt.sign({ role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '1h' });
     res.json({ token });
   } else {
-    res.status(401).json({ error: 'Credenciales incorrectas' });
+    res.status(401).json({ error: 'Credenciales inválidas' });
   }
 });
 
@@ -797,16 +790,16 @@ app.get('/api/turnos/pdf/rango', async (req, res) => {
        JOIN vecinos v ON t.dni_vecino = v.dni 
        JOIN mascotas m ON t.mascota_id = m.id 
        LEFT JOIN veterinarios vet ON t.veterinario_id = vet.id 
-       WHERE t.dia BETWEEN $1 AND $2 
+       WHERE t.dia BETWEEN $1 AND $2 AND t.estado = 'Reservado' 
        ORDER BY t.dia, t.hora`,
       [desde, hasta]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'No se encontraron turnos en el rango especificado' });
+    const turnos = result.rows;
+    if (turnos.length === 0) {
+      return res.status(404).json({ error: 'No hay turnos reservados en este rango de fechas' });
     }
 
-    const turnos = result.rows;
     const doc = new PDFDocument({ size: 'A4', margin: 40 });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=turnos_${desde}_a_${hasta}.pdf`);
@@ -830,7 +823,7 @@ app.get('/api/turnos/pdf/rango', async (req, res) => {
 
     doc.fontSize(20)
        .fillColor(primaryColor)
-       .text(`Turnos del ${desde} al ${hasta}`, doc.page.width - 240, 40, { align: 'right' });
+       .text(`Turnos Reservados: ${desde} al ${hasta}`, doc.page.width - 240, 40, { align: 'right' });
 
     doc.moveDown(2);
     doc.lineCap('butt')
@@ -841,44 +834,57 @@ app.get('/api/turnos/pdf/rango', async (req, res) => {
     doc.moveDown(1);
     doc.fontSize(16)
        .fillColor(primaryColor)
-       .text('Listado de Turnos', { align: 'center' });
+       .text('Lista de Turnos Reservados', 40);
 
-    let yPosition = doc.y + 20;
-    turnos.forEach((turno, index) => {
-      if (yPosition > doc.page.height - 100) {
+    const tableTop = doc.y + 20;
+    const col1 = 40;
+    const col2 = 80;
+    const col3 = 150;
+    const col4 = 220;
+    const col5 = 290;
+    const col6 = 360;
+    const col7 = 430;
+
+    doc.fontSize(12)
+       .text('ID', col1, tableTop)
+       .text('Vecino', col2, tableTop)
+       .text('Mascota', col3, tableTop)
+       .text('Puesto', col4, tableTop)
+       .text('Día', col5, tableTop)
+       .text('Hora', col6, tableTop)
+       .text('Veterinario', col7, tableTop);
+
+    let y = tableTop + 30;
+    turnos.forEach((turno) => {
+      doc.text(turno.id.toString(), col1, y);
+      doc.text(turno.vecino_nombre, col2, y);
+      doc.text(turno.mascota_nombre, col3, y);
+      doc.text(turno.puesto, col4, y);
+      doc.text(turno.dia, col5, y);
+      doc.text(turno.hora, col6, y);
+      doc.text(turno.veterinario_nombre || 'No asignado', col7, y);
+      y += 20;
+
+      if (y > doc.page.height - 100) {
         doc.addPage();
-        yPosition = 40;
+        y = 40;
       }
-
-      doc.fontSize(12)
-         .fillColor(textColor)
-         .text(`Turno ${index + 1}`, 40, yPosition)
-         .text(`ID: ${turno.id}`, 40, yPosition + 15)
-         .text(`Fecha: ${turno.dia} ${turno.hora}`, 40, yPosition + 30)
-         .text(`Puesto: ${turno.puesto}`, 40, yPosition + 45)
-         .text(`Veterinario: ${turno.veterinario_nombre || 'No asignado'}`, 40, yPosition + 60)
-         .text(`Vecino: ${turno.vecino_nombre} (DNI: ${turno.vecino_dni})`, 40, yPosition + 75)
-         .text(`Mascota: ${turno.mascota_nombre}`, 40, yPosition + 90)
-         .text(`Estado: ${turno.estado}`, 40, yPosition + 105);
-
-      doc.lineCap('butt')
-         .moveTo(40, yPosition + 120)
-         .lineTo(doc.page.width - 40, yPosition + 120)
-         .stroke(secondaryColor);
-
-      yPosition += 140;
     });
 
-    doc.moveDown(2);
     doc.fontSize(10)
        .fillColor(textColor)
-       .text('Zoonosis San Isidro - Municipalidad de San Isidro', { align: 'center' })
-       .text('Ante cualquier duda, contactar al 4512-3151/3495 de lunes a viernes de 8 a 14 hs.', { align: 'center' });
+       .text('Zoonosis San Isidro', 40, doc.page.height - 60, { align: 'center' });
+    doc.text('Teléfono: (011) 4512-3456 | Email: zoonosis@sanisidro.gob.ar', 40, doc.page.height - 45, { align: 'center' });
+    doc.text('Dirección: Av. Centenario 123, San Isidro, Buenos Aires', 40, doc.page.height - 30, { align: 'center' });
+
+    doc.lineCap('butt')
+       .moveTo(40, doc.page.height - 70)
+       .lineTo(doc.page.width - 40, doc.page.height - 70)
+       .stroke(secondaryColor);
 
     doc.end();
   } catch (err) {
-    console.error('Error al generar PDF de rango:', err.message);
-    res.status(500).json({ error: 'Error al generar el PDF: ' + err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
