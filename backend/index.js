@@ -796,7 +796,7 @@ app.get('/api/turnos/pdf/rango', async (req, res) => {
        .fillColor(textColor)
        .text('Zoonosis San Isidro', 40, doc.page.height - 60, { align: 'center' });
     doc.text('Teléfono: (011) 4512-3456 | Email: zoonosis@sanisidro.gob.ar', 40, doc.page.height - 45, { align: 'center' });
-    doc.text('Dirección: Av. Centenario 123, San Isidro, Buenos Aires', 40, doc.page.height - 30, { align: 'center' });
+    doc.text('Dirección: 3 de Febrero 536, San Isidro, Buenos Aires', 40, doc.page.height - 30, { align: 'center' });
 
     doc.lineCap('butt')
        .moveTo(40, doc.page.height - 70)
@@ -927,7 +927,7 @@ app.get('/api/turnos/pdf/:id', async (req, res) => {
        .fillColor(textColor)
        .text('Zoonosis San Isidro', 40, doc.page.height - 60, { align: 'center' });
     doc.text('Teléfono: (011) 4512-3456 | Email: zoonosis@sanisidro.gob.ar', 40, doc.page.height - 45, { align: 'center' });
-    doc.text('Dirección: Av. Centenario 123, San Isidro, Buenos Aires', 40, doc.page.height - 30, { align: 'center' });
+    doc.text('Dirección: 3 de febrero 536, San Isidro, Buenos Aires', 40, doc.page.height - 30, { align: 'center' });
 
     doc.lineCap('butt')
        .moveTo(40, doc.page.height - 70)
