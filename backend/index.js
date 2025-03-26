@@ -6,11 +6,14 @@ const cors = require('cors');
 const PDFDocument = require('pdfkit');
 const fetch = require('node-fetch');
 const cron = require('node-cron');
+const fs = require('fs');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
 app.use(express.json());
 app.use(cors());
+app.use('/public', express.static('public'));
 
 // Verificar que las variables de entorno críticas estén definidas al iniciar el servidor
 if (!process.env.JWT_SECRET) {
@@ -184,7 +187,7 @@ const enviarRecordatorios = () => {
           subject: 'Recordatorio de Turno - Zoonosis San Isidro',
           html: `
             <div style="text-align: center; font-family: Arial, sans-serif; color: #333;">
-              <img src="https://www.sanisidro.gob.ar/sites/default/files/Logo%20San%20Isidro%202017.png" alt="Logo Municipio San Isidro" style="width: 200px;">
+              <img src="https://citymis.co/custom/sanisidro/_images/slide-logo.png" alt="Logo Municipio San Isidro" style="width: 200px;">
               <h2>Recordatorio de Turno</h2>
               <p>Estimado Vecino ${turno.vecino_nombre} DNI ${turno.dni_vecino},</p>
               <p>Le recordamos su turno para castración de su mascota ${turno.mascota_nombre} mañana ${turno.dia} a las ${turno.hora} en el puesto ${turno.puesto}.</p>
@@ -585,7 +588,7 @@ app.post('/api/turnos', async (req, res) => {
       subject: 'Confirmación de Turno - Zoonosis San Isidro',
       html: `
         <div style="text-align: center; font-family: Arial, sans-serif; color: #333;">
-          <img src="https://www.sanisidro.gob.ar/sites/default/files/Logo%20San%20Isidro%202017.png" alt="Logo Municipio San Isidro" style="width: 200px;">
+          <img src="https://citymis.co/custom/sanisidro/_images/slide-logo.png" alt="Logo Municipio San Isidro" style="width: 200px;">
           <h2>Confirmación de Turno</h2>
           <p>Estimado Vecino ${vecino.rows[0].nombre || ''} DNI ${dni_vecino},</p>
           <p>Le confirmamos su turno para castración de su mascota ${mascota.rows[0]?.nombre || ''} para el día ${dia} a las ${hora} en el puesto ${puesto}.</p>
@@ -656,173 +659,163 @@ app.post('/api/turnos', async (req, res) => {
 
 // Ruta estática para generar el PDF de un rango de fechas
 app.get('/api/turnos/pdf/rango', async (req, res) => {
-    console.log('Solicitud recibida para /api/turnos/pdf/rango');
-    console.log('Parámetros:', req.query);
-  
-    const token = req.headers.authorization;
-    console.log('Token recibido:', token);
-    if (!token) {
-      console.log('Error: Token no proporcionado');
-      return res.status(403).json({ error: 'Acceso denegado: Token no proporcionado' });
+  console.log('Solicitud recibida para /api/turnos/pdf/rango');
+  console.log('Parámetros:', req.query);
+
+  const token = req.headers.authorization;
+  console.log('Token recibido:', token);
+  if (!token) {
+    console.log('Error: Token no proporcionado');
+    return res.status(403).json({ error: 'Acceso denegado: Token no proporcionado' });
+  }
+
+  if (!process.env.JWT_SECRET) {
+    console.error('Error: JWT_SECRET no está definido en las variables de entorno');
+    return res.status(500).json({ error: 'Error interno del servidor: JWT_SECRET no configurado' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('Token decodificado:', decoded);
+    if (decoded.role !== 'admin') {
+      console.log('Error: Rol no autorizado');
+      return res.status(403).json({ error: 'Acceso denegado: Rol no autorizado' });
     }
-  
-    if (!process.env.JWT_SECRET) {
-      console.error('Error: JWT_SECRET no está definido en las variables de entorno');
-      return res.status(500).json({ error: 'Error interno del servidor: JWT_SECRET no configurado' });
+  } catch (err) {
+    console.error('Error al verificar el token:', err.message);
+    return res.status(403).json({ error: 'Acceso denegado: Token inválido' });
+  }
+
+  const { desde, hasta } = req.query;
+  if (!desde || !hasta) {
+    console.log('Error: Faltan parámetros de fecha');
+    return res.status(400).json({ error: 'Faltan parámetros de fecha' });
+  }
+
+  try {
+    console.log('Ejecutando consulta SQL...');
+    const result = await pool.query(
+      `SELECT t.*, v.nombre AS vecino_nombre, v.dni AS vecino_dni, m.nombre AS mascota_nombre, vet.nombre AS veterinario_nombre 
+       FROM turnos t 
+       JOIN vecinos v ON t.dni_vecino = v.dni 
+       JOIN mascotas m ON t.mascota_id = m.id 
+       LEFT JOIN veterinarios vet ON t.veterinario_id = vet.id 
+       WHERE t.dia BETWEEN $1 AND $2 AND t.estado = 'Reservado' 
+       ORDER BY t.dia, t.hora`,
+      [desde, hasta]
+    );
+    console.log('Consulta ejecutada. Filas obtenidas:', result.rows.length);
+
+    const turnos = result.rows;
+    if (turnos.length === 0) {
+      console.log('No hay turnos reservados en este rango de fechas');
+      return res.status(404).json({ error: 'No hay turnos reservados en este rango de fechas' });
     }
-  
+
+    console.log('Generando PDF...');
+    const doc = new PDFDocument({ size: 'A4', margin: 40, layout: 'landscape' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=turnos_${desde}_a_${hasta}.pdf`);
+    doc.pipe(res);
+
+    const primaryColor = '#2E7D32'; // Verde oscuro del logo
+    const secondaryColor = '#4CAF50'; // Verde más claro del logo
+    const textColor = '#333333';
+
+    doc.rect(0, 0, doc.page.width, 100).fill('#F5F5F5');
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      console.log('Token decodificado:', decoded);
-      if (decoded.role !== 'admin') {
-        console.log('Error: Rol no autorizado');
-        return res.status(403).json({ error: 'Acceso denegado: Rol no autorizado' });
-      }
-    } catch (err) {
-      console.error('Error al verificar el token:', err.message);
-      return res.status(403).json({ error: 'Acceso denegado: Token inválido' });
+      console.log('Cargando logo local...');
+      const logoPath = path.join(__dirname, 'public', 'logo-san-isidro.png');
+      doc.image(logoPath, 40, 20, { width: 150 });
+      console.log('Logo cargado y agregado al PDF');
+    } catch (error) {
+      console.error('Error al cargar el logo:', error.message);
+      doc.text('No se pudo cargar el logo.', 40, 20);
     }
-  
-    const { desde, hasta } = req.query;
-    if (!desde || !hasta) {
-      console.log('Error: Faltan parámetros de fecha');
-      return res.status(400).json({ error: 'Faltan parámetros de fecha' });
-    }
-  
-    try {
-      console.log('Ejecutando consulta SQL...');
-      const result = await pool.query(
-        `SELECT t.*, v.nombre AS vecino_nombre, v.dni AS vecino_dni, m.nombre AS mascota_nombre, vet.nombre AS veterinario_nombre 
-         FROM turnos t 
-         JOIN vecinos v ON t.dni_vecino = v.dni 
-         JOIN mascotas m ON t.mascota_id = m.id 
-         LEFT JOIN veterinarios vet ON t.veterinario_id = vet.id 
-         WHERE t.dia BETWEEN $1 AND $2 AND t.estado = 'Reservado' 
-         ORDER BY t.dia, t.hora`,
-        [desde, hasta]
-      );
-      console.log('Consulta ejecutada. Filas obtenidas:', result.rows.length);
-  
-      const turnos = result.rows;
-      if (turnos.length === 0) {
-        console.log('No hay turnos reservados en este rango de fechas');
-        return res.status(404).json({ error: 'No hay turnos reservados en este rango de fechas' });
+
+    doc.fontSize(20)
+       .fillColor(primaryColor)
+       .text(`Turnos Reservados: ${desde} al ${hasta}`, doc.page.width - 240, 40, { align: 'right' });
+
+    doc.moveDown(2);
+    doc.lineCap('butt')
+       .moveTo(40, 110)
+       .lineTo(doc.page.width - 40, 110)
+       .stroke(secondaryColor);
+
+    doc.moveDown(1);
+    doc.fontSize(16)
+       .fillColor(primaryColor)
+       .text('Lista de Turnos Reservados', 40);
+
+    const tableTop = doc.y + 20;
+    const col1 = 40;
+    const col2 = 80;
+    const col3 = 200;
+    const col4 = 300;
+    const col5 = 450;
+    const col6 = 550;
+    const col7 = 650;
+
+    doc.fontSize(12)
+       .text('ID', col1, tableTop)
+       .text('Vecino', col2, tableTop)
+       .text('Mascota', col3, tableTop)
+       .text('Puesto', col4, tableTop)
+       .text('Día', col5, tableTop)
+       .text('Hora', col6, tableTop)
+       .text('Veterinario', col7, tableTop);
+
+    let y = tableTop + 30;
+    turnos.forEach((turno) => {
+      doc.text(turno.id.toString(), col1, y);
+      doc.text(turno.vecino_nombre || 'N/A', col2, y, { width: 110, ellipsis: true });
+      doc.text(turno.mascota_nombre || 'N/A', col3, y, { width: 90, ellipsis: true });
+      doc.text(turno.puesto || 'N/A', col4, y, { width: 140, ellipsis: true });
+      doc.text(turno.dia || 'N/A', col5, y);
+      doc.text(turno.hora || 'N/A', col6, y);
+      doc.text(turno.veterinario_nombre || 'No asignado', col7, y, { width: 140, ellipsis: true });
+      y += 20;
+
+      if (y > doc.page.height - 100) {
+        doc.addPage();
+        y = 40;
+        doc.fontSize(12)
+           .text('ID', col1, y)
+           .text('Vecino', col2, y)
+           .text('Mascota', col3, y)
+           .text('Puesto', col4, y)
+           .text('Día', col5, y)
+           .text('Hora', col6, y)
+           .text('Veterinario', col7, y);
+        y += 30;
       }
-  
-      console.log('Generando PDF...');
-      // Cambiar a orientación horizontal (landscape)
-      const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 40 });
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename=turnos_${desde}_a_${hasta}.pdf`);
-      doc.pipe(res);
-  
-      const primaryColor = '#2E7D32';
-      const secondaryColor = '#4CAF50';
-      const textColor = '#333333';
-  
-      // Fondo del encabezado
-      doc.rect(0, 0, doc.page.width, 100).fill('#F5F5F5');
-      const logoUrl = 'https://www.sanisidro.gob.ar/sites/default/files/Logo%20San%20Isidro%202017.png';
-      try {
-        console.log('Descargando logo...');
-        const response = await fetch(logoUrl);
-        if (!response.ok) throw new Error(`Error al descargar el logo: ${response.statusText}`);
-        const logoBuffer = await response.buffer();
-        doc.image(logoBuffer, 40, 20, { width: 150 });
-        console.log('Logo descargado y agregado al PDF');
-      } catch (error) {
-        console.error('Error al descargar el logo:', error.message);
-        doc.text('No se pudo cargar el logo.', 40, 20);
-      }
-  
-      doc.fontSize(20)
-         .fillColor(primaryColor)
-         .text(`Turnos Reservados: ${desde} al ${hasta}`, doc.page.width - 240, 40, { align: 'right' });
-  
-      doc.moveDown(2);
-      doc.lineCap('butt')
-         .moveTo(40, 110)
-         .lineTo(doc.page.width - 40, 110)
-         .stroke(secondaryColor);
-  
-      doc.moveDown(1);
-      doc.fontSize(16)
-         .fillColor(primaryColor)
-         .text('Lista de Turnos Reservados', 40);
-  
-      // Ajustar las posiciones de las columnas para el formato horizontal
-      const tableTop = doc.y + 20;
-      const col1 = 40;   // ID
-      const col2 = 80;   // Vecino
-      const col3 = 200;  // Mascota
-      const col4 = 300;  // Puesto
-      const col5 = 450;  // Día
-      const col6 = 550;  // Hora
-      const col7 = 650;  // Veterinario
-  
-      doc.fontSize(12)
-         .text('ID', col1, tableTop)
-         .text('Vecino', col2, tableTop)
-         .text('Mascota', col3, tableTop)
-         .text('Puesto', col4, tableTop)
-         .text('Día', col5, tableTop)
-         .text('Hora', col6, tableTop)
-         .text('Veterinario', col7, tableTop);
-  
-      let y = tableTop + 30;
-      turnos.forEach((turno) => {
-        doc.text(turno.id.toString(), col1, y);
-        doc.text(turno.vecino_nombre || 'N/A', col2, y, { width: 110, ellipsis: true });
-        doc.text(turno.mascota_nombre || 'N/A', col3, y, { width: 90, ellipsis: true });
-        doc.text(turno.puesto || 'N/A', col4, y, { width: 140, ellipsis: true });
-        doc.text(turno.dia || 'N/A', col5, y);
-        doc.text(turno.hora || 'N/A', col6, y);
-        doc.text(turno.veterinario_nombre || 'No asignado', col7, y, { width: 140, ellipsis: true });
-        y += 20;
-  
-        // Ajustar el límite de altura para el formato horizontal (alto de página A4 en landscape es 595)
-        if (y > doc.page.height - 100) {
-          doc.addPage({ size: 'A4', layout: 'landscape', margin: 40 });
-          y = 40;
-          // Redibujar los encabezados de la tabla en la nueva página
-          doc.fontSize(12)
-             .text('ID', col1, 20)
-             .text('Vecino', col2, 20)
-             .text('Mascota', col3, 20)
-             .text('Puesto', col4, 20)
-             .text('Día', col5, 20)
-             .text('Hora', col6, 20)
-             .text('Veterinario', col7, 20);
-          y += 30;
-        }
-      });
-  
-      // Pie de página
-      doc.fontSize(10)
-         .fillColor(textColor)
-         .text('Zoonosis San Isidro', 40, doc.page.height - 60, { align: 'center' });
-      doc.text('Teléfono: (011) 4512-3456 | Email: zoonosis@sanisidro.gob.ar', 40, doc.page.height - 45, { align: 'center' });
-      doc.text('Dirección: Av. Centenario 123, San Isidro, Buenos Aires', 40, doc.page.height - 30, { align: 'center' });
-  
-      doc.lineCap('butt')
-         .moveTo(40, doc.page.height - 70)
-         .lineTo(doc.page.width - 40, doc.page.height - 70)
-         .stroke(secondaryColor);
-  
-      doc.end();
-      console.log('PDF generado y enviado');
-    } catch (err) {
-      console.error('Error en /api/turnos/pdf/rango:', err.message);
-      res.status(500).json({ error: 'Error al generar el PDF: ' + err.message });
-    }
-  });
+    });
+
+    doc.fontSize(10)
+       .fillColor(textColor)
+       .text('Zoonosis San Isidro', 40, doc.page.height - 60, { align: 'center' });
+    doc.text('Teléfono: (011) 4512-3456 | Email: zoonosis@sanisidro.gob.ar', 40, doc.page.height - 45, { align: 'center' });
+    doc.text('Dirección: Av. Centenario 123, San Isidro, Buenos Aires', 40, doc.page.height - 30, { align: 'center' });
+
+    doc.lineCap('butt')
+       .moveTo(40, doc.page.height - 70)
+       .lineTo(doc.page.width - 40, doc.page.height - 70)
+       .stroke(secondaryColor);
+
+    doc.end();
+    console.log('PDF generado y enviado');
+  } catch (err) {
+    console.error('Error en /api/turnos/pdf/rango:', err.message);
+    res.status(500).json({ error: 'Error al generar el PDF: ' + err.message });
+  }
+});
 
 // Ruta dinámica para generar el PDF de un turno específico
 app.get('/api/turnos/pdf/:id', async (req, res) => {
   const { id } = req.params;
   console.log(`Solicitud para generar PDF del turno con ID: ${id}`);
 
-  // Validar que el ID sea un número entero
   if (isNaN(id)) {
     console.log(`Error: El ID (${id}) no es un número válido`);
     return res.status(400).json({ error: 'El ID debe ser un número entero' });
@@ -854,21 +847,18 @@ app.get('/api/turnos/pdf/:id', async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename=turno_${id}.pdf`);
     doc.pipe(res);
 
-    const primaryColor = '#2E7D32';
-    const secondaryColor = '#4CAF50';
+    const primaryColor = '#2E7D32'; // Verde oscuro del logo
+    const secondaryColor = '#4CAF50'; // Verde más claro del logo
     const textColor = '#333333';
 
     doc.rect(0, 0, doc.page.width, 100).fill('#F5F5F5');
-    const logoUrl = 'https://www.sanisidro.gob.ar/sites/default/files/Logo%20San%20Isidro%202017.png';
     try {
-      console.log('Descargando logo...');
-      const response = await fetch(logoUrl);
-      if (!response.ok) throw new Error(`Error al descargar el logo: ${response.statusText}`);
-      const logoBuffer = await response.buffer();
-      doc.image(logoBuffer, 40, 20, { width: 150 });
-      console.log('Logo descargado y agregado al PDF');
+      console.log('Cargando logo local...');
+      const logoPath = path.join(__dirname, 'public', 'logo-san-isidro.png');
+      doc.image(logoPath, 40, 20, { width: 150 });
+      console.log('Logo cargado y agregado al PDF');
     } catch (error) {
-      console.error('Error al descargar el logo:', error.message);
+      console.error('Error al cargar el logo:', error.message);
       doc.text('No se pudo cargar el logo.', 40, 20);
     }
 
@@ -1061,7 +1051,7 @@ app.put('/api/turnos/:id/cancelar', async (req, res) => {
         subject: 'Cancelación de Turno - Zoonosis San Isidro',
         html: `
           <div style="text-align: center; font-family: Arial, sans-serif; color: #333;">
-            <img src="https://www.sanisidro.gob.ar/sites/default/files/Logo%20San%20Isidro%202017.png" alt="Logo Municipio San Isidro" style="width: 200px;">
+            <img src="https://citymis.co/custom/sanisidro/_images/slide-logo.png" alt="Logo Municipio San Isidro" style="width: 200px;">
             <h2>Cancelación de Turno</h2>
             <p>Estimado Vecino ${vecino.rows[0].nombre || ''} DNI ${turno.dni_vecino},</p>
             <p>Le informamos que su turno para el día ${turno.dia} a las ${turno.hora} en el puesto ${turno.puesto} ha sido cancelado.</p>
@@ -1110,7 +1100,7 @@ app.put('/api/turnos/:id/cancelar/vecino', async (req, res) => {
         subject: 'Cancelación de Turno - Zoonosis San Isidro',
         html: `
           <div style="text-align: center; font-family: Arial, sans-serif; color: #333;">
-            <img src="https://www.sanisidro.gob.ar/sites/default/files/Logo%20San%20Isidro%202017.png" alt="Logo Municipio San Isidro" style="width: 200px;">
+            <img src="https://citymis.co/custom/sanisidro/_images/slide-logo.png" alt="Logo Municipio San Isidro" style="width: 200px;">
             <h2>Cancelación de Turno</h2>
             <p>Estimado Vecino ${vecino.rows[0].nombre || ''} DNI ${dni},</p>
             <p>Le informamos que su turno para el día ${turno.dia} a las ${turno.hora} en el puesto ${turno.puesto} ha sido cancelado.</p>

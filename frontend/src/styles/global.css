@@ -1,0 +1,92 @@
+:root {
+    --primary-color: #2E7D32; /* Verde oscuro del logo */
+    --secondary-color: #4CAF50; /* Verde más claro del logo */
+    --text-color: #333333;
+    --background-color: #F5F5F5;
+    --cancel-color: #ff0000; /* Rojo para botones de cancelar/eliminar */
+  }
+  
+  body {
+    background-color: var(--background-color);
+    color: var(--text-color);
+    font-family: Arial, sans-serif;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    color: var(--primary-color);
+  }
+  
+  /* Estilo general para botones */
+  button {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  
+  button:hover {
+    background-color: var(--secondary-color);
+  }
+  
+  /* Estilo para botones de cancelar/eliminar */
+  button.cancel,
+  button.delete {
+    background-color: var(--cancel-color);
+  }
+  
+  button.cancel:hover,
+  button.delete:hover {
+    background-color: #cc0000; /* Un rojo más oscuro al pasar el mouse */
+  }
+  
+  /* Estilo para inputs y formularios */
+  input, select, textarea {
+    border: 1px solid var(--primary-color);
+    border-radius: 5px;
+    padding: 8px;
+    margin: 5px 0;
+  }
+  
+  /* Estilo para tablas */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+  }
+  
+  table, th, td {
+    border: 1px solid var(--primary-color);
+  }
+  
+  th {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 10px;
+  }
+  
+  td {
+    padding: 10px;
+    text-align: center;
+  }
+  
+  /* Estilo para el header */
+  header {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 20px;
+    text-align: center;
+  }
+  
+  /* Estilo para el footer */
+  footer {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 10px;
+    text-align: center;
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+  }
